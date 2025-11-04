@@ -4,4 +4,17 @@
         <!-- Customize your dark theme here. -->
         <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
     </style>
+
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <item name="bottomNavigationStyle">@style/CustomBottomNavigation</item>
+    </style>
+
+    <style name="CustomBottomNavigation" parent="Widget.MaterialComponents.BottomNavigationView">
+        <item name="itemActiveIndicatorStyle">@style/BottomNavigationActiveIndicator</item>
+    </style>
+
+    <style name="BottomNavigationActiveIndicator">
+        <item name="android:color">#E3F2FD</item>
+    </style>
+
 </resources>

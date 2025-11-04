@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.example.timemaster" />
+                  <option name="mobileSdkAppId" value="1:681821304039:android:08e6a1f0f5560d8ac35e42" />
+                  <option name="projectId" value="timemaster-97080" />
+                  <option name="projectNumber" value="681821304039" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />
