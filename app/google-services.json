@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "820539638477",
+    "project_id": "timemaster-c6189",
+    "storage_bucket": "timemaster-c6189.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:820539638477:android:2d2d78f864879c5fad1f84",
+        "android_client_info": {
+          "package_name": "com.example.timemaster"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "820539638477-qig5gvutai17mo74rpg8c7nmasiecajs.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.timemaster",
+            "certificate_hash": "8fca3eaac71a342c83dcf877ad176fdaa0de9181"
+          }
+        },
+        {
+          "client_id": "820539638477-i2nhqh34pp92ng3ilr4mbfh87gk9k3qo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_n2Z2ElxLyoQSOiCXErYjPjon6jmwxAc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "820539638477-i2nhqh34pp92ng3ilr4mbfh87gk9k3qo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

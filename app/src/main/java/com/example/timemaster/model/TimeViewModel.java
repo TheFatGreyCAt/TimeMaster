@@ -1,137 +1,173 @@
 package com.example.timemaster.model;
 
+import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
+import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
-import com.example.timemaster.network.RetrofitClient;
+import com.google.firebase.Timestamp;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.Locale;
-import android.os.Handler;
-
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
+import java.util.Map;
+import java.util.TimeZone;
 
 public class TimeViewModel extends ViewModel {
+
     private static final String TAG = "TimeViewModel";
 
-    // UI Livedata
-    private final MutableLiveData<String> currentTime = new MutableLiveData<>("--:--:--");
-    private final MutableLiveData<String> currentDate = new MutableLiveData<>("--:--:--");
+    private final FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+    private final MutableLiveData<String> currentTime = new MutableLiveData<>();
+    private final MutableLiveData<String> currentDate = new MutableLiveData<>();
     private final MutableLiveData<Boolean> isLoading = new MutableLiveData<>(false);
-    private final MutableLiveData<String> errorMessage = new MutableLiveData<>(null);
+    private final MutableLiveData<String> errorMessage = new MutableLiveData<>();
 
-    // Timestamp from server
-    private long serverTimestamp = 0L;
-    private long localReferenceTime = 0L;
+    private long serverReferenceTimestamp = 0L; // milliseconds
+    private long deviceReferenceTimestamp = 0L; // milliseconds
+    private boolean hasSynced = false;
 
-    // Handler realtime clock
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private Runnable clockRunnable;
+    private Runnable timeUpdateRunnable;
 
-    public MutableLiveData<String> getCurrentTime() {
-        return currentTime;
+    public TimeViewModel() {
+        Log.d(TAG, "TimeViewModel created");
+        startAutoUpdate();
     }
 
-    public MutableLiveData<String> getCurrentDate() {
-        return currentDate;
-    }
-
-    public MutableLiveData<Boolean> getIsLoading() {
-        return isLoading;
-    }
-
-    public MutableLiveData<String> getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void fetchWorldTime() {
+    public void syncWithServerTime(OnServerTimeSynced callback) {
         isLoading.setValue(true);
         errorMessage.setValue(null);
 
-        Call<WorldTimeResponse> call = RetrofitClient.getWorldTimeService().getWorldTime();
-        call.enqueue(new Callback<WorldTimeResponse>() {
-            @Override
-            public void onResponse(Call<WorldTimeResponse> call, Response<WorldTimeResponse> response) {
-                isLoading.setValue(false);
-                if (response.isSuccessful() && response.body() != null) {
-                    WorldTimeResponse data = response.body();
-                    serverTimestamp = data.getUnixtime() * 1000;
-                    localReferenceTime = System.currentTimeMillis();
+        final DocumentReference docRef = firestore.collection("_server_time").document("temp");
+        Map<String, Object> data = new HashMap<>();
+        data.put("timestamp", FieldValue.serverTimestamp());
+        Log.d(TAG, "Fetching server time from Firestore...");
 
-                    Log.d(TAG, "WorldTime timestamp: " + serverTimestamp);
-                    startRealtimeClock();
-                }
-                else {
-                    String error = "Lỗi Server: " + response.code();
-                    errorMessage.setValue(error);
-                    Log.e(TAG, error);
-                    useFallbackTime();
-                }
-            }
-
-            @Override
-            public void onFailure(Call<WorldTimeResponse> call, Throwable t) {
+        docRef.set(data).addOnSuccessListener(aVoid -> {
+            docRef.get().addOnSuccessListener(documentSnapshot -> {
                 isLoading.setValue(false);
 
-                String error = "Lỗi kết nối: " + t.getMessage();
-                errorMessage.setValue(error);
-                Log.e(TAG, error, t);
-
-                useFallbackTime();
-            }
+                if (documentSnapshot.exists()) {
+                    Timestamp serverTimestamp = documentSnapshot.getTimestamp("timestamp");
+                    if (serverTimestamp != null) {
+                        serverReferenceTimestamp = serverTimestamp.toDate().getTime();
+                        deviceReferenceTimestamp = System.currentTimeMillis();
+                        hasSynced = true;
+                        Log.d(TAG, "Server time synced: " + new Date(serverReferenceTimestamp));
+                        if (callback != null) callback.onSuccess(serverReferenceTimestamp);
+                    } else {
+                        Log.e(TAG, "Server timestamp is null");
+                        fallbackToDeviceTime(callback);
+                    }
+                    docRef.delete();
+                } else {
+                    Log.e(TAG, "Document does not exist");
+                    fallbackToDeviceTime(callback);
+                }
+            }).addOnFailureListener(e -> {
+                isLoading.setValue(false);
+                Log.e(TAG, "Error reading server time: " + e.getMessage(), e);
+                fallbackToDeviceTime(callback);
+            });
+        }).addOnFailureListener(e -> {
+            isLoading.setValue(false);
+            Log.e(TAG, "Error writing server time: " + e.getMessage(), e);
+            fallbackToDeviceTime(callback);
         });
     }
 
-    private void startRealtimeClock() {
-        stopRealtimeClock();
-
-        clockRunnable = new Runnable() {
-            @Override
-            public void run() {
-                long elapsedTime = System.currentTimeMillis() - localReferenceTime;
-                long currentTimestamp = serverTimestamp + elapsedTime;
-
-                SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss", Locale.getDefault());
-                SimpleDateFormat dateFormat = new SimpleDateFormat("dd:MM:yyyy", Locale.getDefault());
-
-                currentTime.setValue(timeFormat.format(currentTimestamp));
-                currentDate.setValue(dateFormat.format(currentTimestamp));
-                handler.postDelayed(this, 1000);
-            }
-        };
+    public interface OnServerTimeSynced {
+        void onSuccess(long serverTimestampMillis);
     }
 
-    private void stopRealtimeClock() {
-        if (clockRunnable != null) {
-            handler.removeCallbacks(clockRunnable);
+    private long getCurrentSyncedTime() {
+        if (hasSynced) {
+            long localNow = System.currentTimeMillis();
+            return serverReferenceTimestamp + (localNow - deviceReferenceTimestamp);
+        } else {
+            return System.currentTimeMillis();
         }
     }
 
-    private void useFallbackTime() {
-        serverTimestamp = System.currentTimeMillis();
-        localReferenceTime = serverTimestamp;
-        startRealtimeClock();
+    private void startAutoUpdate() {
+        timeUpdateRunnable = new Runnable() {
+            @Override
+            public void run() {
+                long ts = getCurrentSyncedTime();
+                updateTimeDisplay(ts);
+                handler.postDelayed(this, 1000);
+            }
+        };
+        handler.post(timeUpdateRunnable);
+        Log.d(TAG, "Auto-update started (display only, 1 fetch per check-in/check-out)");
+    }
+
+    private void stopAutoUpdate() {
+        if (timeUpdateRunnable != null) {
+            handler.removeCallbacks(timeUpdateRunnable);
+            Log.d(TAG, "Auto-update stopped");
+        }
+    }
+
+    private void fallbackToDeviceTime(OnServerTimeSynced callback) {
+        hasSynced = false;
+        long localTime = System.currentTimeMillis();
+        updateTimeDisplay(localTime);
+        Log.w(TAG, "Using device time as fallback (only display!)");
+        if (callback != null) callback.onSuccess(localTime);
+    }
+
+    private void updateTimeDisplay(long timestamp) {
+        try {
+            Date date = new Date(timestamp);
+
+            SimpleDateFormat timeFormat = new SimpleDateFormat("hh:mm a", new Locale("vi", "VN"));
+            timeFormat.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
+            String formattedTime = timeFormat.format(date);
+            currentTime.postValue(formattedTime);
+
+            SimpleDateFormat dateFormat = new SimpleDateFormat("EEEE, dd 'tháng' MM, yyyy", new Locale("vi", "VN"));
+            dateFormat.setTimeZone(TimeZone.getTimeZone("Asia/Ho_Chi_Minh"));
+            String formattedDate = dateFormat.format(date);
+            currentDate.postValue(formattedDate);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error formatting time: " + e.getMessage(), e);
+        }
+    }
+
+    public LiveData<String> getCurrentTime() {
+        return currentTime;
+    }
+
+    public LiveData<String> getCurrentDate() {
+        return currentDate;
+    }
+
+    public LiveData<Boolean> getIsLoading() {
+        return isLoading;
+    }
+
+    public LiveData<String> getErrorMessage() {
+        return errorMessage;
     }
 
     public long getCurrentTimestamp() {
-        long elapsedTime = System.currentTimeMillis() - localReferenceTime;
-        return serverTimestamp + elapsedTime;
-    }
-
-    public void syncTime() {
-        fetchWorldTime();
+        return getCurrentSyncedTime();
     }
 
     @Override
     protected void onCleared() {
         super.onCleared();
-        stopRealtimeClock();
+        stopAutoUpdate();
+        Log.d(TAG, "TimeViewModel cleared");
     }
-
 }
-

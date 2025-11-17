@@ -9,9 +9,9 @@
               <option name="connection">
                 <ConnectionSetting>
                   <option name="appId" value="com.example.timemaster" />
-                  <option name="mobileSdkAppId" value="1:681821304039:android:08e6a1f0f5560d8ac35e42" />
-                  <option name="projectId" value="timemaster-97080" />
-                  <option name="projectNumber" value="681821304039" />
+                  <option name="mobileSdkAppId" value="1:820539638477:android:2d2d78f864879c5fad1f84" />
+                  <option name="projectId" value="timemaster-c6189" />
+                  <option name="projectNumber" value="820539638477" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

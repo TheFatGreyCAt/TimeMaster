@@ -1,4 +1,4 @@
-package com.example.timemaster.app;
+package com.example.timemaster.app.Layer1;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -18,7 +18,6 @@ import androidx.lifecycle.ViewModelProvider;
 
 import com.example.timemaster.R;
 import com.example.timemaster.model.TimeViewModel;
-import com.google.firebase.Firebase;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -31,8 +30,6 @@ public class MainActivity extends AppCompatActivity {
     private Button btnFaceId;
     private Button btnFingerprint;
     private ProgressBar progressLoading;
-
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,19 +49,15 @@ public class MainActivity extends AppCompatActivity {
         initViews();
         setupObservers();
         setupClickListeners();
-        fetchTimeFromServer();
     }
 
     private void initViews() {
-        // Map với ID trong XML
         tvTime = findViewById(R.id.tvTime);
         tvDate = findViewById(R.id.tvDate);
         tvGuide = findViewById(R.id.tvGuide);
         tvLogin = findViewById(R.id.tvLogin);
         btnFaceId = findViewById(R.id.btnFaceId);
         btnFingerprint = findViewById(R.id.btnFingerprint);
-
-        // ProgressBar (thêm vào XML nếu chưa có)
         progressLoading = findViewById(R.id.progressLoading);
         if (progressLoading == null) {
             Log.w(TAG, "progressLoading not found in layout, creating programmatically");
@@ -72,7 +65,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupObservers() {
-        // Observe thời gian (10:20 SA)
         timeViewModel.getCurrentTime().observe(this, time -> {
             if (time != null) {
                 tvTime.setText(time);
@@ -80,7 +72,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Observe ngày (Thứ Năm, 23 tháng 10, 2025)
         timeViewModel.getCurrentDate().observe(this, date -> {
             if (date != null) {
                 tvDate.setText(date);
@@ -88,18 +79,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Observe loading state
         timeViewModel.getIsLoading().observe(this, isLoading -> {
             if (isLoading != null && progressLoading != null) {
                 progressLoading.setVisibility(isLoading ? View.VISIBLE : View.GONE);
-
-                // Disable buttons khi đang loading
                 btnFaceId.setEnabled(!isLoading);
                 btnFingerprint.setEnabled(!isLoading);
             }
         });
 
-        // Observe error message
         timeViewModel.getErrorMessage().observe(this, message -> {
             if (message != null && !message.isEmpty()) {
                 Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
@@ -111,15 +98,18 @@ public class MainActivity extends AppCompatActivity {
     private void setupClickListeners() {
         btnFaceId.setOnClickListener(v -> {
             Log.d(TAG, "FaceID button clicked");
-            openFaceRecognitionActivity();
+            timeViewModel.syncWithServerTime(serverTimestamp -> {
+                openFaceRecognitionActivity(serverTimestamp);
+            });
         });
 
         btnFingerprint.setOnClickListener(v -> {
             Log.d(TAG, "Fingerprint button clicked");
-            openFingerprintActivity();
+            timeViewModel.syncWithServerTime(serverTimestamp -> {
+                openFingerprintActivity(serverTimestamp);
+            });
         });
 
-        // Xem xet xoa
         tvGuide.setOnClickListener(v -> {
             Log.d(TAG, "Guide button clicked");
             showGuide();
@@ -131,62 +121,27 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void fetchTimeFromServer() {
-        Log.d(TAG, "Fetching time from WorldTime API...");
-        timeViewModel.fetchWorldTime();
-    }
-
-    private void openFaceRecognitionActivity() {
+    private void openFaceRecognitionActivity(long serverTimestamp) {
         Intent intent = new Intent(MainActivity.this, FaceRecognitionActivity.class);
-
-        // Truyền timestamp hiện tại sang màn hình chấm công
-        long currentTimestamp = timeViewModel.getCurrentTimestamp();
-        intent.putExtra("TIMESTAMP", currentTimestamp);
+        intent.putExtra("TIMESTAMP", serverTimestamp);
         intent.putExtra("METHOD", "FACEID");
-
-        Log.d(TAG, "Opening FaceRecognitionActivity with timestamp: " + currentTimestamp);
+        Log.d(TAG, "Opening FaceRecognitionActivity with timestamp: " + serverTimestamp);
         startActivity(intent);
     }
 
-    private void openFingerprintActivity() {
+    private void openFingerprintActivity(long serverTimestamp) {
+        // Có thể truyền serverTimestamp cho attendance tại đây
         Toast.makeText(this, "Tính năng Fingerprint đang được phát triển", Toast.LENGTH_SHORT).show();
-
-        // TODO: Tạo FingerprintActivity
-        /*
-        Intent intent = new Intent(MainActivity.this, FingerprintActivity.class);
-        long currentTimestamp = timeViewModel.getCurrentTimestamp();
-        intent.putExtra("TIMESTAMP", currentTimestamp);
-        intent.putExtra("METHOD", "FINGERPRINT");
-        startActivity(intent);
-        */
+        // và thực hiện lưu điểm danh/fingerprint với timestamp server nếu đã hoàn thiện backend
     }
 
     private void showGuide() {
         Toast.makeText(this, "Hướng dẫn sử dụng TimeMaster", Toast.LENGTH_LONG).show();
-
-        // TODO: Mở màn hình hướng dẫn
-        /*
-        Intent intent = new Intent(MainActivity.this, GuideActivity.class);
-        startActivity(intent);
-        */
     }
 
     private void openLoginActivity() {
-        Toast.makeText(this, "Chức năng đăng nhập đang được phát triển", Toast.LENGTH_SHORT).show();
-
-        // TODO: Mở màn hình đăng nhập
-        /*
         Intent intent = new Intent(MainActivity.this, LoginActivity.class);
         startActivity(intent);
-        */
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // Sync time
-        Log.d(TAG, "onResume - Syncing time...");
-        timeViewModel.syncTime();
     }
 
     @Override

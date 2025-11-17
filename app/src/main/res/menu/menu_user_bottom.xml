@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_status"
+        android:title="Trạng thái"
+        android:icon="@drawable/ic_status" />
+    <item
+        android:id="@+id/nav_stats"
+        android:title="Thống kê"
+        android:icon="@drawable/ic_stats" />
+    <item
+        android:id="@+id/nav_settings"
+        android:title="Cài đặt"
+        android:icon="@drawable/ic_settings" />
+</menu>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chiều rộng các cột (dùng chung cho HEADER & ROW để thẳng hàng) -->
+    <dimen name="col_name_w">230dp</dimen>
+    <dimen name="col_in_w">70dp</dimen>
+    <dimen name="col_out_w">70dp</dimen>
+    <dimen name="col_status_w">110dp</dimen>
+
+    <!-- Khoảng cách giữa các cột -->
+    <dimen name="col_gap">18dp</dimen>
+
+    <!-- Kích thước khối -->
+    <dimen name="header_h">56dp</dimen>
+    <dimen name="row_min_h">56dp</dimen>
+    <dimen name="avatar_size">38dp</dimen>
+
+    <!-- Padding ngang của header & row để mép cột trùng nhau -->
+    <dimen name="header_pad_h">8dp</dimen>
+    <!-- You can add other dimension values here as well -->
+    <dimen name="radius_lg">16dp</dimen>
+
+    <dimen name="radius_md">8dp</dimen>
+    <dimen name="space_md">16dp</dimen>
+    <dimen name="space_sm">8dp</dimen>
+</resources>

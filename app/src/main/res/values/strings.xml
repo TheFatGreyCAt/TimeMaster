@@ -11,7 +11,42 @@
     <string name="action_sign_in_short">Sign in</string>
     <string name="welcome">"Welcome !"</string>
     <string name="invalid_username">Not a valid username</string>
-    <string name="invalid_password">Password must be >5 characters</string>
+    <string name="invalid_password">Password must be more than five characters</string>
     <string name="login_failed">"Login failed"</string>
     <string name="capture">Capture</string>
+
+    <string name="action_login">Đăng nhập</string>
+    <string name="action_register">Đăng ký</string>
+    <string name="login_welcome_message">Chào mừng trở lại</string>
+    <string name="login_welcome_subtitle">Đăng nhập hoặc đăng ký để tiếp tục.</string>
+    <string name="label_username_or_email">Tên người dùng hoặc Email</string>
+    <string name="hint_username_or_email">Nhập tên người dùng hoặc email của bạn</string>
+    <string name="label_password">Mật khẩu</string>
+    <string name="hint_password">Nhập mật khẩu của bạn</string>
+    <string name="action_forgot_password">Quên mật khẩu?</string>
+    <string name="login_with_social_media_prompt">Hoặc đăng nhập với</string>
+    <string name="cd_fingerprint_icon">Biểu tượng vân tay</string>
+    <string name="cd_fingerprint_button">Nút đăng nhập bằng vân tay</string>
+    <string name="cd_face_recognition_button">Nút đăng nhập bằng khuôn mặt</string>
+    <string name="admin_manage_title">ADMIN • Quản lý</string>
+    <string name="cd_back_to_welcome">Quay trở lại màn hình chào</string>
+
+    <!--    firebase -->
+    <string name="default_web_client_id">820539638477-qig5gvutai17mo74rpg8c7nmasiecajs.apps.googleusercontent.com</string>
+    <string name="gcm_defaultSenderId" translatable="false">820539638477</string>
+    <string name="google_api_key" translatable="false">AIzaSyA_n2Z2ElxLyoQSOiCXErYjPjon6jmwxAc</string>
+    <string name="google_app_id" translatable="false">1:820539638477:android:2d2d78f864879c5fad1f84</string>
+    <string name="google_crash_reporting_api_key" translatable="false">AIzaSyA_n2Z2ElxLyoQSOiCXErYjPjon6jmwxAc</string>
+    <string name="google_storage_bucket" translatable="false">timemaster-c6189.firebasestorage.app</string>
+    <string name="project_id" translatable="false">timemaster-c6189</string>
+
+    <string name="forgot_title">Khôi phục mật khẩu</string>
+    <string name="forgot_heading">Quên mật khẩu?</string>
+    <string name="forgot_sub">Nhập email đã đăng ký để nhận liên kết đặt lại mật khẩu.</string>
+    <string name="forgot_helper">Ví dụ: tenban@domain.com</string>
+    <string name="forgot_email_hint">Email</string>
+    <string name="forgot_send_btn">Gửi email đặt lại</string>
+    <string name="forgot_tip">Mẹo: Kiểm tra cả thư mục Spam/Quảng cáo nếu không thấy email.</string>
+    <string name="forgot_illustration_cd">Minh hoạ khôi phục mật khẩu</string>
+
 </resources>
