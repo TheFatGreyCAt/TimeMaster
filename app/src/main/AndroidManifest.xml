@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <uses-feature android:name="android.hardware.camera" android:required="true" />
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="true" />
+
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -18,31 +22,36 @@
         android:theme="@style/Theme.TimeMaster"
         android:usesCleartextTraffic="true">
 
+        <!-- Main Entry Point -->
         <activity
-            android:name=".app.Layer1.FaceRecognitionActivity"
-            android:exported="false" />
-        <activity
-            android:name=".app.Layer1.MainActivity"
+            android:name=".ui.checkin.CheckInActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- LoginActivity -->
+        <!-- Auth Activities -->
         <activity
-            android:name=".app.Layer1.LoginActivity"
+            android:name=".ui.auth.login.LoginActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
-
-        <!-- RegisterActivity -->
         <activity
-            android:name=".app.Layer1.RegisterActivity"
+            android:name=".ui.auth.register.RegisterActivity"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".ui.auth.forgotpassword.ForgotPassword"
+            android:exported="false" />
+        <activity
+            android:name=".ui.auth.facerecognition.FaceRecognitionActivity"
+            android:exported="false" />
 
+        <!-- App Main Screen -->
+        <activity
+            android:name=".ui.dashboard.DashboardHostActivity"
+            android:exported="false" />
 
     </application>
 

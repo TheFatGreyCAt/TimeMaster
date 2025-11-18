@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:minHeight="@dimen/row_min_h"
+    android:gravity="center_vertical"
+    android:paddingStart="@dimen/header_pad_h"
+    android:paddingEnd="@dimen/header_pad_h">
+
+    <!-- CỘT 1: Nhân viên (avatar + tên) -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="@dimen/col_name_w"
+        android:layout_height="match_parent"
+        android:gravity="center_vertical"
+        android:layout_marginEnd="@dimen/col_gap">
+
+        <ImageView
+            android:id="@+id/img_avatar"
+            android:layout_width="@dimen/avatar_size"
+            android:layout_height="@dimen/avatar_size"
+            android:src="@drawable/ic_faceid"
+            android:background="@drawable/bg_avatar"
+            android:scaleType="centerCrop"
+            android:layout_marginEnd="7dp" />
+
+        <TextView
+            android:id="@+id/tv_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#232323"
+            android:maxLines="2"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- CỘT 2: Giờ vào -->
+    <TextView
+        android:id="@+id/tv_check_in"
+        android:layout_width="@dimen/col_in_w"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="#232323"
+        android:layout_marginEnd="@dimen/col_gap"
+        android:text="08:00" />
+
+    <!-- CỘT 3: Giờ ra -->
+    <TextView
+        android:id="@+id/tv_check_out"
+        android:layout_width="@dimen/col_out_w"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="#232323"
+        android:layout_marginEnd="@dimen/col_gap"
+        android:text="17:30" />
+
+    <!-- CỘT 4: Trạng thái -->
+    <TextView
+        android:id="@+id/tv_status"
+        android:layout_width="@dimen/col_status_w"
+        android:layout_height="wrap_content"
+        android:minHeight="32dp"
+        android:gravity="center"
+        android:text="Đúng giờ"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:textColor="#232323"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:background="@drawable/bg_badge_present" />
+</LinearLayout>

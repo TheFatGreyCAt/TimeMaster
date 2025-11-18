@@ -1,17 +1,16 @@
 plugins {
-//    alias(libs.plugins.android.application) apply false
     id("com.android.application")
-    id("com.google.gms.google-services") version "4.4.4" apply false
+    id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.example.timemaster"
-    compileSdk = 36
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.timemaster"
-        minSdk = 24
-        targetSdk = 36
+        minSdk = 26
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -28,64 +27,33 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
-
     buildFeatures {
         viewBinding = true
     }
-
 }
 
-//repositories {
-//    google()
-//    mavenCentral()
-//    maven(url = "https://jitpack.io")
-//}
-
 dependencies {
-    // Core AndroidX Libraries
-    implementation(libs.appcompat)
-    implementation(libs.material)
-    implementation(libs.activity)
-    implementation(libs.constraintlayout)
-    implementation(libs.annotation)
-    implementation(libs.cardview)
-    implementation(libs.recyclerview)
-    implementation(libs.circleimageview)
-    implementation(libs.glide)
-    implementation("androidx.transition:transition:1.6.0")
+    implementation("androidx.appcompat:appcompat:1.6.1")
+    implementation("com.google.android.material:material:1.11.0")
+    implementation("androidx.activity:activity:1.8.2")
+    implementation("androidx.constraintlayout:constraintlayout:2.1.4")
+    implementation ("com.google.android.gms:play-services-auth:21.2.0")
 
-// Lifecycle
-    implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.6.1")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.1")
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.4")
-    implementation("androidx.activity:activity-ktx:1.11.0")
-    implementation("androidx.fragment:fragment-ktx:1.8.9")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
-// Charts
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 
-// Biometric
-    implementation("androidx.biometric:biometric:1.1.0")
-
-// Unit Testing
-    testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.3.0")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
-
-// Firebase (use BOM for versions)
-    implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
+    implementation(platform("com.google.firebase:firebase-bom:32.7.4"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.android.gms:play-services-auth:21.0.0")
+    implementation("com.google.android.gms:play-services-auth:21.2.0")  // nếu dùng Google Sign-
 
-    // CameraX (direct string)
-    implementation("androidx.camera:camera-core:1.5.1")
-    implementation("androidx.camera:camera-camera2:1.5.1")
-    implementation("androidx.camera:camera-lifecycle:1.5.1")
-    implementation("androidx.camera:camera-view:1.5.1")
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+
 }

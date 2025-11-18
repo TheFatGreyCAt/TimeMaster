@@ -296,7 +296,7 @@
                 android:layout_marginTop="10dp"/>
 
             <!-- Header bảng -->
-            <com.example.timemaster.app.Layer2.dashboard.stats.SyncedHorizontalScrollView
+            <com.example.timemaster.ui.widget.SyncedHorizontalScrollView
                 android:id="@+id/header_scroll"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -356,11 +356,11 @@
                         android:textColor="#232323"
                         android:textSize="16sp"/>
                 </LinearLayout>
-            </com.example.timemaster.app.Layer2.dashboard.stats.SyncedHorizontalScrollView>
+            </com.example.timemaster.ui.widget.SyncedHorizontalScrollView>
 
 
             <!-- Danh sách dòng (cuộn ngang đồng bộ) -->
-            <com.example.timemaster.app.Layer2.dashboard.stats.SyncedHorizontalScrollView
+            <com.example.timemaster.ui.widget.SyncedHorizontalScrollView
                 android:id="@+id/list_scroll"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -372,7 +372,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"/>
-            </com.example.timemaster.app.Layer2.dashboard.stats.SyncedHorizontalScrollView>
+            </com.example.timemaster.ui.widget.SyncedHorizontalScrollView>
 
             <!-- Phân trang -->
             <LinearLayout

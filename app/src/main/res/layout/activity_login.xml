@@ -322,7 +322,7 @@
 
             <!-- Nút đăng nhập Google -->
             <com.google.android.material.card.MaterialCardView
-                android:id="@+id/card_google"
+                android:id="@+id/btn_google_login"
                 android:layout_width="65dp"
                 android:layout_height="65dp"
                 app:cardCornerRadius="32dp"
