@@ -47,6 +47,9 @@
         <activity
             android:name=".ui.auth.facerecognition.FaceRecognitionActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.auth.facerecognition.RegisterFaceActivity"
+            android:exported="false" />
 
         <!-- App Main Screen -->
         <activity

@@ -10,7 +10,7 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.timemaster.R;
-import com.example.timemaster.ui.dashboard.admin.AdminManagerFragment;
+import com.example.timemaster.ui.dashboard.admin.ManagementFragment;
 import com.example.timemaster.ui.dashboard.settings.SettingsFragment;
 import com.example.timemaster.ui.dashboard.stats.AdminStatsFragment;
 import com.example.timemaster.ui.dashboard.stats.UserStatsFragment;
@@ -48,7 +48,6 @@ public class DashboardFragment extends Fragment {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // Lấy role từ arguments
         if (getArguments() != null) {
             String r = getArguments().getString(ARG_ROLE, Role.USER.name());
             currentRole = Role.valueOf(r);
@@ -58,14 +57,14 @@ public class DashboardFragment extends Fragment {
 
         setupBottomNavForRole();
 
-        // chọn tab đầu tiên
         if (currentRole == Role.ADMIN) {
             bottomNav.setSelectedItemId(R.id.nav_manage);
-            switchChildFragment(R.id.nav_manage);
         } else {
             bottomNav.setSelectedItemId(R.id.nav_status);
-            switchChildFragment(R.id.nav_status);
         }
+
+        // Set the initial fragment
+        switchChildFragment(bottomNav.getSelectedItemId());
 
         bottomNav.setOnItemSelectedListener(item -> {
             switchChildFragment(item.getItemId());
@@ -74,25 +73,22 @@ public class DashboardFragment extends Fragment {
     }
 
     private void setupBottomNavForRole() {
+        bottomNav.getMenu().clear();
         if (currentRole == Role.ADMIN) {
-            // menu_admin_bottom.xml
-            bottomNav.getMenu().clear();
             bottomNav.inflateMenu(R.menu.menu_admin_bottom);
         } else {
-            // menu_user_bottom.xml
-            bottomNav.getMenu().clear();
             bottomNav.inflateMenu(R.menu.menu_user_bottom);
         }
     }
 
     private void switchChildFragment(int itemId) {
-        Fragment child;
+        Fragment child = null;
         if (currentRole == Role.ADMIN) {
             if (itemId == R.id.nav_manage) {
-                child = new AdminManagerFragment();
+                child = new ManagementFragment();
             } else if (itemId == R.id.nav_stats) {
                 child = new AdminStatsFragment();
-            } else {
+            } else if (itemId == R.id.nav_settings) {
                 child = new SettingsFragment();
             }
         } else {
@@ -100,15 +96,17 @@ public class DashboardFragment extends Fragment {
                 child = new UserStatusFragment();
             } else if (itemId == R.id.nav_stats) {
                 child = new UserStatsFragment();
-            } else {
+            } else if (itemId == R.id.nav_settings) {
                 child = new SettingsFragment();
             }
         }
 
-        getChildFragmentManager()
-                .beginTransaction()
-                .setReorderingAllowed(true)
-                .replace(R.id.dashboard_content, child)
-                .commit();
+        if (child != null) {
+            getChildFragmentManager()
+                    .beginTransaction()
+                    .setReorderingAllowed(true)
+                    .replace(R.id.dashboard_content, child)
+                    .commit();
+        }
     }
 }
