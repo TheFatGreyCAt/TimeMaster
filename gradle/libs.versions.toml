@@ -9,6 +9,7 @@ constraintlayout = "2.2.1"
 glide = "5.0.5"
 material = "1.13.0"
 recyclerview = "1.4.0"
+biometric = "1.1.0"
 
 [libraries]
 activity = { group = "androidx.activity", name = "activity", version.ref = "activity" }
@@ -20,6 +21,7 @@ constraintlayout = { group = "androidx.constraintlayout", name = "constraintlayo
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
 material = { group = "com.google.android.material", name = "material", version.ref = "material" }
 recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

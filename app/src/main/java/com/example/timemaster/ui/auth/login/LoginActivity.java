@@ -5,14 +5,28 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
+// For Fingerprint Login
+import androidx.biometric.BiometricPrompt;
+import androidx.biometric.BiometricManager;
+import androidx.core.content.ContextCompat;
+
+import java.util.concurrent.Executor;
+
+import com.example.timemaster.ui.auth.fingerprint.FingerprintPrefs;
+
+
 import com.example.timemaster.R;
+import com.example.timemaster.ui.auth.forgotpassword.ForgotPassword;
 import com.example.timemaster.ui.checkin.CheckInActivity;
 import com.example.timemaster.ui.auth.register.RegisterActivity;
 import com.example.timemaster.ui.dashboard.DashboardHostActivity;
@@ -23,6 +37,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
 import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.tasks.Task;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.card.MaterialCardView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
 import com.google.firebase.auth.AuthCredential;
@@ -42,11 +57,21 @@ public class LoginActivity extends AppCompatActivity {
 
     private FirebaseAuth firebaseAuth;
     private FirebaseFirestore firestore;
+    private FingerprintPrefs fingerprintPrefs;
 
+    private LinearLayout tabLayout;
+    private TextView tabLogin, tabRegister;
+
+    // Inputs
     private TextInputLayout titleEmail, titlePassword;
     private TextInputEditText editEmail, editPassword;
-    private MaterialButton btnLogin;
 
+    // Actions
+    private TextView textViewForgotPassword;
+    private MaterialButton btnLogin;
+    private MaterialCardView cardFingerprint, cardFace, cardGoogle;
+
+    // Google Sign In
     private GoogleSignInClient googleSignInClient;
     private ActivityResultLauncher<Intent> googleSignInLauncher;
 
@@ -55,41 +80,78 @@ public class LoginActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_login);
 
+        // Khởi tạo Firebase
         firebaseAuth = FirebaseAuth.getInstance();
         firestore = FirebaseFirestore.getInstance();
 
-        initView();
-        setupClickListener();
-        configureGoogleSignIn();
+        // Khởi tạo vân tay
+        fingerprintPrefs = new FingerprintPrefs(this);
 
-        // Lấy email từ RegisterActivity (nếu có)
-        String prefill = getIntent().getStringExtra(RegisterActivity.EXTRA_PREFILL_EMAIL);
-        if (!TextUtils.isEmpty(prefill)) {
-            editEmail.setText(prefill);
-            editPassword.requestFocus();
-        }
-    }
+        // Ánh xạ View
+        tabLayout = findViewById(R.id.tab_layout_Log);
+        tabLogin = findViewById(R.id.tab_login_Login);
+        tabRegister = findViewById(R.id.tab_register_Login);
 
-    private void initView() {
         titleEmail = findViewById(R.id.title_email);
         titlePassword = findViewById(R.id.title_password);
         editEmail = findViewById(R.id.editText_email);
         editPassword = findViewById(R.id.editText_password);
+
+        textViewForgotPassword = findViewById(R.id.textView_forgot_password);
         btnLogin = findViewById(R.id.button_login);
+
+        cardFingerprint = findViewById(R.id.card_fingerprint);
+        cardFace = findViewById(R.id.card_face);
+        cardGoogle = findViewById(R.id.btn_google_login);
+
+        // Prefill email từ màn hình đăng ký
+        String prefillEmail = getIntent().getStringExtra(RegisterActivity.EXTRA_PREFILL_EMAIL);
+        if (prefillEmail != null && !prefillEmail.isEmpty() && editEmail != null) {
+            editEmail.setText(prefillEmail);
+        }
+
+        // Cài đặt sự kiện click
+        setupClickListener();
+
+        // Mặc định chọn tab đăng nhập
+        configureGoogleSignIn();
+
+
     }
+
 
     private void setupClickListener() {
         btnLogin.setOnClickListener(v -> handleLogin());
-        findViewById(R.id.textView_forgot_password).setOnClickListener(v -> handleForgotPassword());
+
         findViewById(R.id.btn_google_login).setOnClickListener(v -> signInWithGoogle());
 
         findViewById(R.id.btn_back_welcome).setOnClickListener(v -> {
             startActivity(new Intent(this, CheckInActivity.class));
             finish();
         });
+
         findViewById(R.id.tab_register_Login).setOnClickListener(v -> {
             startActivity(new Intent(this, RegisterActivity.class));
         });
+
+        // Chuyển sang trang quên mật khẩu khi ấn nút Quên mật khẩu
+        textViewForgotPassword.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(LoginActivity.this, ForgotPassword.class);
+                intent.putExtra(ForgotPassword.EXTRA_PREFILL_EMAIL, editEmail.getText().toString());
+                startActivity(intent);
+            }
+        });
+
+        // Đăng nhập bằng vân tay
+        cardFingerprint.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                loginWithFingerprint();
+            }
+        });
+
     }
 
     private void setLoading(boolean loading) {
@@ -136,14 +198,6 @@ public class LoginActivity extends AppCompatActivity {
         return isValid;
     }
 
-    private void handleForgotPassword() {
-        String email = editEmail.getText().toString().trim();
-        if (!validateInput(email, "not_empty")) return;
-
-        firebaseAuth.sendPasswordResetEmail(email)
-                .addOnSuccessListener(unused -> Toast.makeText(this, "Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.", Toast.LENGTH_LONG).show())
-                .addOnFailureListener(e -> Toast.makeText(this, "Gửi email thất bại: " + e.getLocalizedMessage(), Toast.LENGTH_LONG).show());
-    }
 
     private void configureGoogleSignIn() {
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -246,5 +300,95 @@ public class LoginActivity extends AppCompatActivity {
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(i);
         finish();
+    }
+
+    // ĐĂNG NHẬP BẰNG VÂN TAY
+    private void loginWithFingerprint() {
+        if (!fingerprintPrefs.isEnabled()) {
+            Toast.makeText(this, "Bạn chưa đăng kí vân tay trong cài đặt", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        BiometricManager biometricManager = BiometricManager.from(this);
+        int canAuth = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
+
+        if (canAuth != BiometricManager.BIOMETRIC_SUCCESS) {
+            Toast.makeText(this, "Thiết bị chưa thiết lập vân tay", Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        Executor executor = ContextCompat.getMainExecutor(this);
+
+        BiometricPrompt.AuthenticationCallback callback = new BiometricPrompt.AuthenticationCallback() {
+            @Override
+            public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                super.onAuthenticationSucceeded(result);
+                loginAfterFingerprint();
+            }
+
+            @Override
+            public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
+                super.onAuthenticationError(errorCode, errString);
+                Toast.makeText(LoginActivity.this, "Lỗi: " + errString, Toast.LENGTH_SHORT).show();
+            }
+
+            @Override
+            public void onAuthenticationFailed() {
+                super.onAuthenticationFailed();
+                Toast.makeText(LoginActivity.this, "Vân tay không khớp, thử lại", Toast.LENGTH_SHORT).show();
+            }
+        };
+
+        BiometricPrompt prompt = new BiometricPrompt(this, executor, callback);
+
+        BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Đăng nhập bằng vân tay")
+                .setSubtitle("Xác thực để đăng nhập vào tài khoản đã đăng ký")
+                .setNegativeButtonText("Hủy")
+                .build();
+
+        prompt.authenticate(promptInfo);
+    }
+
+    private void loginAfterFingerprint() {
+        String provider = fingerprintPrefs.getProvider();
+
+        if (provider == null) {
+            Toast.makeText(this, "Không tìm thấy dữ liệu đăng nhập vân tay", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // LOGIN EMAIL/PASSWORD
+        if (provider.equals("password")) {
+            String email = fingerprintPrefs.getDecryptedEmail();
+            String pass = fingerprintPrefs.getDecryptedPassword();
+
+            if (email == null || pass == null) {
+                Toast.makeText(this, "Không đọc được email/mật khẩu. Hãy đăng ký lại vân tay.", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            firebaseAuth.signInWithEmailAndPassword(email, pass)
+                    .addOnSuccessListener(authResult -> {
+                        checkUserRoleInFirestore(firebaseAuth.getCurrentUser());
+                    })
+                    .addOnFailureListener(e -> {
+                        Toast.makeText(this, "Đăng nhập thất bại: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    });
+        }
+
+        // LOGIN GOOGLE
+        else if (provider.equals("google")) {
+            googleSignInClient.silentSignIn()
+                    .addOnCompleteListener(task -> {
+                        if (task.isSuccessful()) {
+                            GoogleSignInAccount acc = task.getResult();
+                            firebaseAuthWithGoogle(acc.getIdToken());
+                        }
+                        else {
+                            Toast.makeText(this, "Không thể đăng nhập Google tự động. Vui lòng đăng nhập lại và đăng ký vân tay.", Toast.LENGTH_LONG).show();
+                        }
+                    });
+        }
     }
 }

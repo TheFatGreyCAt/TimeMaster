@@ -141,6 +141,38 @@
                         android:src="@drawable/ic_chevron_right" />
                 </RelativeLayout>
 
+                <RelativeLayout
+                    android:id="@+id/row_register_fingerprint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:background="?attr/selectableItemBackground"
+                    android:paddingVertical="12dp">
+
+                    <ImageView
+                        android:id="@+id/icon_fingerprint"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/ic_fingerprint" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerVertical="true"
+                        android:layout_marginStart="16dp"
+                        android:layout_toEndOf="@id/icon_fingerprint"
+                        android:text="Đăng ký / Cập nhật vân tay" />
+
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_centerVertical="true"
+                        android:src="@drawable/ic_chevron_right" />
+                </RelativeLayout>
+
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

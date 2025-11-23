@@ -68,7 +68,8 @@ dependencies {
 
     // TensorFlow Lite for Face Recognition
     implementation("org.tensorflow:tensorflow-lite:2.9.0")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0") // Optional: for GPU acceleration
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0")
+    implementation(libs.biometric) // Optional: for GPU acceleration
 
     // Testing
     testImplementation("junit:junit:4.13.2")
