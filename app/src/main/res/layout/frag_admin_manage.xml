@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="#F0F3F8"
     android:id="@+id/main"
-    tools:context=".ManagementFragment">
+    tools:context=".ui.dashboard.admin.ManagementFragment">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
@@ -23,7 +23,8 @@
             android:layout_height="?attr/actionBarSize"
             app:navigationIcon="@drawable/ic_left_arrow"
             app:title="Quản lý Hồ sơ"
-            app:menu="@menu/menu_admin_bottom" />  </com.google.android.material.appbar.AppBarLayout>
+            app:menu="@menu/menu_admin_bottom" />
+    </com.google.android.material.appbar.AppBarLayout>
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/search_card"
@@ -39,7 +40,8 @@
         app:layout_constraintEnd_toEndOf="parent">
 
         <EditText
-            android:id="@+id/et_search"  android:layout_width="match_parent"
+            android:id="@+id/et_search"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="Tìm kiếm nhân viên..."
             android:padding="16dp"
@@ -51,13 +53,16 @@
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_view_employees"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
         android:layout_height="0dp"
         android:layout_marginTop="16dp"
-        android:paddingHorizontal="16dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:layout_constraintTop_toBottomOf="@id/search_card"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
         tools:listitem="@layout/item_employee" />
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -68,6 +73,5 @@
         android:src="@drawable/ic_add"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent" />
-
 
 </androidx.constraintlayout.widget.ConstraintLayout>
