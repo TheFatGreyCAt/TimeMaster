@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -13,6 +14,7 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.timemaster.R;
+import com.example.timemaster.ui.auth.forgotpassword.ForgotPassword;
 import com.example.timemaster.ui.checkin.CheckInActivity;
 import com.example.timemaster.ui.auth.register.RegisterActivity;
 import com.example.timemaster.ui.dashboard.DashboardHostActivity;
@@ -43,6 +45,7 @@ public class LoginActivity extends AppCompatActivity {
     private FirebaseAuth firebaseAuth;
     private FirebaseFirestore firestore;
 
+    private TextView tvForgotPassword;
     private TextInputLayout titleEmail, titlePassword;
     private TextInputEditText editEmail, editPassword;
     private MaterialButton btnLogin;
@@ -76,6 +79,7 @@ public class LoginActivity extends AppCompatActivity {
         editEmail = findViewById(R.id.editText_email);
         editPassword = findViewById(R.id.editText_password);
         btnLogin = findViewById(R.id.button_login);
+        tvForgotPassword = findViewById(R.id.textView_forgot_password);
     }
 
     private void setupClickListener() {
@@ -89,6 +93,11 @@ public class LoginActivity extends AppCompatActivity {
         });
         findViewById(R.id.tab_register_Login).setOnClickListener(v -> {
             startActivity(new Intent(this, RegisterActivity.class));
+        });
+
+        tvForgotPassword.setOnClickListener(view -> {
+            Intent intent = new Intent(LoginActivity.this, ForgotPassword.class);
+            startActivity(intent);
         });
     }
 

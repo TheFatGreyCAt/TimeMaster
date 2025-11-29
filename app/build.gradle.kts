@@ -49,9 +49,10 @@ dependencies {
     implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
 
     // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:32.7.4"))
+    implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-functions") // Thư viện để gọi Cloud Functions
     implementation("com.google.android.gms:play-services-auth:21.2.0")
@@ -67,8 +68,8 @@ dependencies {
     implementation("androidx.camera:camera-view:1.3.1")
 
     // TensorFlow Lite for Face Recognition
-    implementation("org.tensorflow:tensorflow-lite:2.9.0")
-    implementation("org.tensorflow:tensorflow-lite-gpu:2.9.0") // Optional: for GPU acceleration
+    implementation("org.tensorflow:tensorflow-lite:2.13.0")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.13.0") // Optional: for GPU acceleration
 
     // Testing
     testImplementation("junit:junit:4.13.2")

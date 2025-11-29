@@ -1,27 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    tools:context=".ui.auth.facerecognition.RegisterFaceActivity">
 
     <androidx.camera.view.PreviewView
         android:id="@+id/preview_view_register"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <com.example.timemaster.utils.camerax.GraphicOverlay
+        android:id="@+id/graphic_overlay_register"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="@+id/preview_view_register"
+        app:layout_constraintEnd_toEndOf="@+id/preview_view_register"
+        app:layout_constraintStart_toStartOf="@+id/preview_view_register"
+        app:layout_constraintTop_toTopOf="@+id/preview_view_register" />
+
     <TextView
-        android:id="@+id/tv_instruction"
+        android:id="@+id/status_text_view_register"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="32dp"
+        android:layout_marginTop="32dp"
         android:background="#80000000"
         android:gravity="center"
-        android:padding="16dp"
-        android:text="Vui lòng giữ yên và nhìn thẳng vào camera..."
+        android:padding="8dp"
+        android:text="Đang tìm khuôn mặt..."
         android:textColor="@android:color/white"
         android:textSize="18sp"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        android:layout_marginBottom="32dp">
+
+        <TextView
+            android:id="@+id/capture_count_text_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="@android:color/white"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:background="#80000000"
+            android:padding="8dp"
+            tools:text="1/3"/>
+
+        <Button
+            android:id="@+id/capture_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="CHỤP" />
+
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/register_progress_bar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

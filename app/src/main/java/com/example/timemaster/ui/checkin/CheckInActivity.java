@@ -17,8 +17,9 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.timemaster.R;
-import com.example.timemaster.ui.auth.facerecognition.FaceRecognitionActivity;
+import com.example.timemaster.ui.auth.login.FaceRecognitionActivity;
 import com.example.timemaster.ui.auth.login.LoginActivity;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class CheckInActivity extends AppCompatActivity {
 
@@ -61,24 +62,19 @@ public class CheckInActivity extends AppCompatActivity {
         btnFaceId = findViewById(R.id.btnFaceId);
         btnFingerprint = findViewById(R.id.btnFingerprint);
         progressLoading = findViewById(R.id.progressLoading);
-        if (progressLoading == null) {
-            Log.w(TAG, "progressLoading not found in layout, creating programmatically");
-        }
+
+        // Kích hoạt lại nút FaceID
+        btnFaceId.setEnabled(true);
+        btnFaceId.setText("  FaceID");
     }
 
     private void setupObservers() {
         timeViewModel.getCurrentTime().observe(this, time -> {
-            if (time != null) {
-                tvTime.setText(time);
-                Log.d(TAG, "Time updated: " + time);
-            }
+            if (time != null) tvTime.setText(time);
         });
 
         timeViewModel.getCurrentDate().observe(this, date -> {
-            if (date != null) {
-                tvDate.setText(date);
-                Log.d(TAG, "Date updated: " + date);
-            }
+            if (date != null) tvDate.setText(date);
         });
 
         timeViewModel.getIsLoading().observe(this, isLoading -> {
@@ -92,49 +88,29 @@ public class CheckInActivity extends AppCompatActivity {
         timeViewModel.getErrorMessage().observe(this, message -> {
             if (message != null && !message.isEmpty()) {
                 Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "Error: " + message);
             }
         });
     }
 
     private void setupClickListeners() {
         btnFaceId.setOnClickListener(v -> {
-            Log.d(TAG, "FaceID button clicked");
-            timeViewModel.syncWithServerTime(serverTimestamp -> {
-                openFaceRecognitionActivity(serverTimestamp);
-            });
+            Intent intent = new Intent(CheckInActivity.this, FaceRecognitionActivity.class);
+            intent.putExtra("is_registration", false);
+            startActivity(intent);
         });
 
         btnFingerprint.setOnClickListener(v -> {
             Log.d(TAG, "Fingerprint button clicked");
-            timeViewModel.syncWithServerTime(serverTimestamp -> {
-                openFingerprintActivity(serverTimestamp);
-            });
+            openFingerprintActivity();
         });
 
-        tvGuide.setOnClickListener(v -> {
-            Log.d(TAG, "Guide button clicked");
-            showGuide();
-        });
+        tvGuide.setOnClickListener(v -> showGuide());
 
-        tvLogin.setOnClickListener(v -> {
-            Log.d(TAG, "Login/Register clicked");
-            openLoginActivity();
-        });
+        tvLogin.setOnClickListener(v -> openLoginActivity());
     }
 
-    private void openFaceRecognitionActivity(long serverTimestamp) {
-        Intent intent = new Intent(CheckInActivity.this, FaceRecognitionActivity.class);
-        intent.putExtra("TIMESTAMP", serverTimestamp);
-        intent.putExtra("METHOD", "FACEID");
-        Log.d(TAG, "Opening FaceRecognitionActivity with timestamp: " + serverTimestamp);
-        startActivity(intent);
-    }
-
-    private void openFingerprintActivity(long serverTimestamp) {
-        // Có thể truyền serverTimestamp cho attendance tại đây
+    private void openFingerprintActivity() {
         Toast.makeText(this, "Tính năng Fingerprint đang được phát triển", Toast.LENGTH_SHORT).show();
-        // và thực hiện lưu điểm danh/fingerprint với timestamp server nếu đã hoàn thiện backend
     }
 
     private void showGuide() {

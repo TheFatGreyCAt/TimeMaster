@@ -47,6 +47,13 @@
     <string name="forgot_email_hint">Email</string>
     <string name="forgot_send_btn">Gửi email đặt lại</string>
     <string name="forgot_tip">Mẹo: Kiểm tra cả thư mục Spam/Quảng cáo nếu không thấy email.</string>
-    <string name="forgot_illustration_cd">Minh hoạ khôi phục mật khẩu</string>
+
+    <!-- UserStatsFragment -->
+    <string name="status_on_time">Đúng giờ</string>
+    <string name="status_late">Đi trễ</string>
+    <string name="status_early_out">Về sớm</string>
+    <string name="status_absent">Vắng mặt</string>
+    <string name="status_unknown">—</string>
+    <string name="week_label_format">%1$s - %2$s</string>
 
 </resources>

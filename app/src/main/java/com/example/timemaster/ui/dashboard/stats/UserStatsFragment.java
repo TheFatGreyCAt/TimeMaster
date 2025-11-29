@@ -72,7 +72,7 @@ public class UserStatsFragment extends Fragment {
         cal.add(Calendar.DAY_OF_WEEK, 6);
         String endOfWeek = dateFmt.format(cal.getTime());
 
-        tvWeekLabel.setText(startOfWeek + " - " + endOfWeek);
+        tvWeekLabel.setText(getString(R.string.week_label_format, startOfWeek, endOfWeek));
 
         btnPrevWeek.setEnabled(currentWeekOffset > -MAX_PAST_WEEKS);
         btnNextWeek.setEnabled(currentWeekOffset < 0);
@@ -90,33 +90,33 @@ public class UserStatsFragment extends Fragment {
             TextView tvStatus = checkinView.findViewById(R.id.tv_status);
 
             tvDayOfWeek.setText(item.getDate());
-            tvCheckin.setText(item.getCheckInTime() == null ? "—" : item.getCheckInTime());
-            tvCheckout.setText(item.getCheckOutTime() == null ? "—" : item.getCheckOutTime());
+            tvCheckin.setText(item.getCheckInTime() == null ? getString(R.string.status_unknown) : item.getCheckInTime());
+            tvCheckout.setText(item.getCheckOutTime() == null ? getString(R.string.status_unknown) : item.getCheckOutTime());
 
             int statusType = item.getStatusType();
             switch (statusType) {
                 case 0:
-                    tvStatus.setText("Đúng giờ");
+                    tvStatus.setText(R.string.status_on_time);
                     tvStatus.setBackgroundResource(R.drawable.bg_badge_present);
                     tvStatus.setTextColor(Color.parseColor("#077342"));
                     break;
                 case 1:
-                    tvStatus.setText("Đi trễ");
+                    tvStatus.setText(R.string.status_late);
                     tvStatus.setBackgroundResource(R.drawable.bg_badge_late);
                     tvStatus.setTextColor(Color.parseColor("#FFA000"));
                     break;
                 case 2:
-                    tvStatus.setText("Về sớm");
+                    tvStatus.setText(R.string.status_early_out);
                     tvStatus.setBackgroundResource(R.drawable.bg_badge_earlyout);
                     tvStatus.setTextColor(Color.parseColor("#1186B4"));
                     break;
                 case 3:
-                    tvStatus.setText("Vắng mặt");
+                    tvStatus.setText(R.string.status_absent);
                     tvStatus.setBackgroundResource(R.drawable.bg_badge_absent);
                     tvStatus.setTextColor(Color.parseColor("#D90429"));
                     break;
                 default:
-                    tvStatus.setText("—");
+                    tvStatus.setText(R.string.status_unknown);
                     tvStatus.setBackgroundResource(R.drawable.bg_badge_absent);
                     tvStatus.setTextColor(Color.GRAY);
                     break;
@@ -137,18 +137,18 @@ public class UserStatsFragment extends Fragment {
             }
         }
         ArrayList<PieEntry> entries = new ArrayList<>();
-        if (dungGio > 0) entries.add(new PieEntry(dungGio, "Đúng giờ"));
-        if (diTre > 0) entries.add(new PieEntry(diTre, "Đi trễ"));
-        if (veSom > 0) entries.add(new PieEntry(veSom, "Về sớm"));
-        if (vangMat > 0) entries.add(new PieEntry(vangMat, "Vắng mặt"));
+        if (dungGio > 0) entries.add(new PieEntry(dungGio, getString(R.string.status_on_time)));
+        if (diTre > 0) entries.add(new PieEntry(diTre, getString(R.string.status_late)));
+        if (veSom > 0) entries.add(new PieEntry(veSom, getString(R.string.status_early_out)));
+        if (vangMat > 0) entries.add(new PieEntry(vangMat, getString(R.string.status_absent)));
 
         PieDataSet set = new PieDataSet(entries, "");
-        set.setColors(new int[]{
+        set.setColors(
                 Color.parseColor("#43E97B"),
                 Color.parseColor("#FFC542"),
                 Color.parseColor("#4D8AF0"),
                 Color.parseColor("#FF647C")
-        });
+        );
 
         set.setValueFormatter(new ValueFormatter() {
             @Override
@@ -167,12 +167,6 @@ public class UserStatsFragment extends Fragment {
         pieChart.setCenterText("Check-in");
         pieChart.setCenterTextSize(16f);
         pieChart.invalidate();
-    }
-
-    private int getCurrentIsoWeekNumber() {
-        Calendar cal = Calendar.getInstance(Locale.getDefault());
-        cal.setFirstDayOfWeek(Calendar.MONDAY);
-        return cal.get(Calendar.WEEK_OF_YEAR);
     }
 
     private List<CheckIn> getDemoCheckInListForWeek(int weekOffset) {
