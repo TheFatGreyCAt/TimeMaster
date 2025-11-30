@@ -1,8 +1,8 @@
 package com.example.timemaster.ui.dashboard.settings;
 
-import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -12,11 +12,14 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.camera.core.ExperimentalGetImage;
 import androidx.fragment.app.Fragment;
 
+import com.bumptech.glide.Glide;
 import com.example.timemaster.EditProfileActivity;
 import com.example.timemaster.R;
 import com.example.timemaster.ui.auth.login.LoginActivity;
@@ -29,6 +32,11 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.storage.FirebaseStorage;
+import com.google.firebase.storage.StorageReference;
+
+import java.io.File;
+import java.io.IOException;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
@@ -37,11 +45,16 @@ public class SettingsFragment extends Fragment {
 
     private FirebaseUser currentUser;
     private DocumentReference userRef;
+    private StorageReference storageRef;
 
     private TextView tvProfileName, tvProfileRole;
     private CircleImageView profileImage;
     private RelativeLayout rowChangePassword;
     private RelativeLayout rowEditProfile;
+
+    // Khai báo ActivityResultLauncher
+    private ActivityResultLauncher<Intent> imagePickerLauncher;
+    private Uri currentPhotoUri;
 
 
     @Nullable
@@ -51,16 +64,26 @@ public class SettingsFragment extends Fragment {
 
         currentUser = FirebaseAuth.getInstance().getCurrentUser();
         if (currentUser != null) {
+            // Khởi tạo DocumentReference tới tài liệu người dùng trong collection "users"
             userRef = FirebaseFirestore.getInstance().collection("users").document(currentUser.getUid());
+            // Khởi tạo Storage Reference
+            storageRef = FirebaseStorage.getInstance().getReference().child("profile_images").child(currentUser.getUid());
         }
 
         initViews(view);
-
+        registerImagePickerLauncher(); // Khởi tạo Launcher
         loadUserProfile();
-
         setupClicks(view);
 
         return view;
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        // Tải lại thông tin người dùng mỗi khi Fragment hiển thị trở lại
+        // Điều này đảm bảo tên và ảnh được cập nhật nếu người dùng chỉnh sửa
+        loadUserProfile();
     }
 
     public void initViews(View view) {
@@ -85,20 +108,17 @@ public class SettingsFragment extends Fragment {
             startActivity(intent);
         });
 
-        view.findViewById(R.id.btn_logout).setOnClickListener(v -> {
-            if (getActivity() != null) {
-                FirebaseAuth.getInstance().signOut();
-                Intent intent = new Intent(getActivity(), LoginActivity.class);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
-                startActivity(intent);
-                getActivity().finish();
-            }
-        });
+        // Click vào ảnh đại diện để thay đổi
+        profileImage.setOnClickListener(v -> showImagePickerDialog());
+
+        // Gọi handleLogout để xử lý việc đăng xuất an toàn
+        view.findViewById(R.id.btn_logout).setOnClickListener(v -> handleLogout());
     }
 
     // --- I. PROFILE LOGIC
     private void loadUserProfile() {
 
+        // 1. Tải nhanh thông tin từ Firebase Authentication (tên hoặc Email)
         if (currentUser != null) {
             String quickName = currentUser.getDisplayName();
             String quickEmail = currentUser.getEmail();
@@ -110,29 +130,157 @@ public class SettingsFragment extends Fragment {
             }
         }
 
+        // 2. Tải thông tin chi tiết từ Firestore (lấy trường 'fullName' và 'photoUrl')
         if (userRef != null) {
             userRef.get().addOnCompleteListener(task -> {
-                if (getContext() == null) return; // Prevent crash if fragment is detached
+                // Kiểm tra Fragment còn gắn vào Activity trước khi tương tác với View
+                if (getActivity() == null || getContext() == null) return;
+
                 if (task.isSuccessful()) {
                     DocumentSnapshot document = task.getResult();
 
                     if (document.exists()) {
-                        String name = document.getString("displayName");
+                        String name = document.getString("fullName");
                         String role = document.getString("role");
-                        tvProfileName.setText(name != null ? name : "N/A");
+                        String photoUrl = document.getString("photoUrl"); // Lấy URL ảnh
+
+                        // Cập nhật tên và vai trò
+                        tvProfileName.setText(name != null ? name : "Người dùng");
                         tvProfileRole.setText(role != null ? role.toUpperCase() : "");
-                        // TODO: Load profile image using a library like Glide or Picasso
+
+                        // Tải ảnh bằng Glide
+                        if (photoUrl != null && !photoUrl.isEmpty()) {
+                            Glide.with(this)
+                                    .load(photoUrl)
+                                    .placeholder(R.drawable.ic_avatar) // Ảnh tạm thời
+                                    .error(R.drawable.ic_avatar)      // Ảnh khi lỗi
+                                    .into(profileImage);
+                        } else {
+                            // Nếu không có URL, đặt ảnh mặc định
+                            profileImage.setImageResource(R.drawable.ic_avatar);
+                        }
+
                     } else {
-                        tvProfileName.setText("User not found");
+                        // Nếu không tìm thấy document, hiển thị thông báo
+                        if (currentUser != null && currentUser.getDisplayName() == null) {
+                            tvProfileName.setText("User data not found");
+                        }
                     }
                 } else {
                     Toast.makeText(getContext(), "Failed to load profile.", Toast.LENGTH_SHORT).show();
                 }
             });
         }
-    } // check SettingFragment cua Loc
+    }
 
-    // --- II. CHANGE PASSWORD LOGIC ---
+    // --- CHỨC NĂNG CHỤP/CHỌN VÀ TẢI ẢNH ---
+
+    private void registerImagePickerLauncher() {
+        imagePickerLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == getActivity().RESULT_OK && result.getData() != null) {
+                        Uri imageUri = result.getData().getData();
+                        if (imageUri != null) {
+                            uploadImageToFirebase(imageUri);
+                        }
+                    } else if (result.getResultCode() == getActivity().RESULT_OK && currentPhotoUri != null) {
+                        // Xử lý ảnh chụp từ Camera
+                        uploadImageToFirebase(currentPhotoUri);
+                    } else {
+                        Toast.makeText(getContext(), "Hủy bỏ chọn ảnh.", Toast.LENGTH_SHORT).show();
+                    }
+                }
+        );
+    }
+
+    private void showImagePickerDialog() {
+        if (getContext() == null) return;
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+        builder.setTitle("Chọn ảnh đại diện");
+        builder.setItems(new CharSequence[]{"Chụp ảnh mới", "Chọn từ Thư viện"}, (dialog, which) -> {
+            if (which == 0) {
+                // Chụp ảnh
+                dispatchTakePictureIntent();
+            } else {
+                // Chọn từ thư viện
+                Intent galleryIntent = new Intent(Intent.ACTION_PICK);
+                galleryIntent.setType("image/*");
+                imagePickerLauncher.launch(galleryIntent);
+            }
+        });
+        builder.show();
+    }
+
+    private void dispatchTakePictureIntent() {
+        Intent takePictureIntent = new Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE);
+        if (takePictureIntent.resolveActivity(requireActivity().getPackageManager()) != null) {
+
+            // Tạo một tệp tạm thời để lưu ảnh
+            File photoFile = null;
+            try {
+                // Sử dụng getExternalCacheDir() để lưu tạm
+                File imagesDir = new File(requireContext().getExternalCacheDir(), "images");
+                if (!imagesDir.exists()) imagesDir.mkdirs();
+                photoFile = new File(imagesDir, System.currentTimeMillis() + ".jpg");
+
+            } catch (Exception ex) {
+                Toast.makeText(getContext(), "Lỗi tạo file: " + ex.getMessage(), Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (photoFile != null) {
+                // NOTE: Dùng FileProvider (tốt hơn) thay vì Uri.fromFile()
+                // Nhưng để đơn giản, ta dùng Uri.fromFile() cho file tạm trong Cache
+                currentPhotoUri = Uri.fromFile(photoFile);
+                takePictureIntent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, currentPhotoUri);
+                imagePickerLauncher.launch(takePictureIntent);
+            }
+        } else {
+            Toast.makeText(getContext(), "Thiết bị không hỗ trợ chụp ảnh.", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void uploadImageToFirebase(Uri imageUri) {
+        if (storageRef == null || getContext() == null) return;
+
+        // Hiển thị ảnh vừa chọn lên UI ngay lập tức
+        Glide.with(this).load(imageUri).into(profileImage);
+
+        Toast.makeText(getContext(), "Đang tải ảnh lên...", Toast.LENGTH_SHORT).show();
+
+        // Tải ảnh lên Storage
+        storageRef.putFile(imageUri)
+                .addOnSuccessListener(taskSnapshot -> {
+                    // Lấy URL của ảnh sau khi tải lên
+                    storageRef.getDownloadUrl().addOnSuccessListener(uri -> {
+                        String downloadUrl = uri.toString();
+
+                        // Cập nhật URL vào Firestore (dùng trường 'photoUrl')
+                        updateProfileUrlInFirestore(downloadUrl);
+                    });
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(getContext(), "Tải ảnh thất bại: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                });
+    }
+
+    private void updateProfileUrlInFirestore(String downloadUrl) {
+        if (userRef == null || getContext() == null) return;
+
+        // Cập nhật URL trong Firestore
+        userRef.update("photoUrl", downloadUrl)
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(getContext(), "Cập nhật ảnh đại diện thành công!", Toast.LENGTH_SHORT).show();
+                    // Vì đã gọi loadUserProfile() trong onResume(), nên không cần gọi lại ở đây
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(getContext(), "Lỗi cập nhật Firestore.", Toast.LENGTH_SHORT).show();
+                });
+    }
+
+    // --- II. CHANGE PASSWORD LOGIC --- (GIỮ NGUYÊN)
     private void handleChangePassword() {
         if (currentUser == null) {
             Toast.makeText(requireContext(), "Bạn cần đăng nhập để thực hiện.", Toast.LENGTH_SHORT).show();
@@ -145,7 +293,6 @@ public class SettingsFragment extends Fragment {
         View dialogView = inflater.inflate(R.layout.dialog_change_password, null);
         builder.setView(dialogView);
         builder.setTitle("Đổi mật khẩu");
-        // builder.setCancelable(false); // Có thể bỏ dòng này để user bấm ra ngoài là tắt
 
         TextInputEditText etOldPass = dialogView.findViewById(R.id.et_old_password_dialog);
         TextInputEditText etNewPass = dialogView.findViewById(R.id.et_new_password_dialog);
@@ -201,13 +348,14 @@ public class SettingsFragment extends Fragment {
         });
     }
 
-    // --- III. LOGOUT LOGIC ---
+    // --- III. LOGOUT LOGIC --- (GIỮ NGUYÊN)
     private void handleLogout() {
         if (getActivity() != null) {
             FirebaseAuth.getInstance().signOut();
             Intent intent = new Intent(getActivity(), LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
+
             getActivity().finish();
         }
     }
