@@ -167,7 +167,7 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalysis);
 
                 Log.d(TAG, "Camera started with front-facing camera and face detection");
-                updateStatusText("Camera đã sẵn sàng - ML Kit đang phát hiện khuôn mặt...");
+                updateStatusText("Camera đã sẵn sàng - hệ thống đang phát hiện khuôn mặt...");
 
             } catch (Exception e) {
                 Log.e(TAG, "Error starting camera", e);
@@ -228,17 +228,17 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
         firestore.collection("face_embeddings").document(currentUser.getUid())
                 .set(data)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "=== Firestore SAVE SUCCESS! ===");
+                    Log.d(TAG, "Firestore SAVE SUCCESS!");
                     runOnUiThread(() -> {
                         Toast.makeText(this, "Đăng ký khuôn mặt thành công", Toast.LENGTH_SHORT).show();
-                        updateStatusText("✅ Đã đăng ký thành công");
+                        updateStatusText("Đã đăng ký thành công");
                     });
                     isProcessing = false;
                     // Đợi 1 giây rồi thoát
                     new android.os.Handler().postDelayed(this::finish, 1000);
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "=== Firestore SAVE FAILED! ===");
+                    Log.e(TAG, "Firestore SAVE FAILED!");
                     Log.e(TAG, "Error class: " + e.getClass().getName());
                     Log.e(TAG, "Error message: " + e.getMessage());
                     if (e.getCause() != null) {
@@ -249,7 +249,7 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                     runOnUiThread(() -> {
                         String errorMsg = "Lưu thất bại: " + e.getMessage();
                         Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
-                        updateStatusText("❌ " + errorMsg);
+                        updateStatusText(errorMsg);
                     });
                     isProcessing = false;
                 });
@@ -289,10 +289,12 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                     }
 
                     if (bestId != null && bestDistance <= RECOGNITION_THRESHOLD) {
-                        updateStatusText(String.format(Locale.getDefault(), "Điểm danh thành công (id=%s, dist=%.3f)", bestId, bestDistance));
-                        Toast.makeText(this, "Điểm danh thành công", Toast.LENGTH_SHORT).show();
-                        isProcessing = false;
-                        finish();
+                        Log.d(TAG, "FACE RECOGNITION SUCCESS");
+                        Log.d(TAG, "Matched user ID: " + bestId);
+                        Log.d(TAG, "Distance: " + bestDistance);
+
+                        // Lưu attendance record vào Firebase
+                        saveAttendanceRecord(bestId, bestDistance);
                     } else {
                         updateStatusText("Không khớp với dữ liệu đã lưu - thử lại");
                         Toast.makeText(this, "Không tìm thấy kết quả phù hợp", Toast.LENGTH_SHORT).show();
@@ -314,6 +316,155 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
             sum += d * d;
         }
         return Math.sqrt(sum);
+    }
+
+    /**
+     * Lưu thông tin điểm danh vào Firestore collection "attendanceRecords"
+     * Logic: Lần đầu trong ngày = CHECK_IN, lần sau = CHECK_OUT, có thể nhiều lần
+     * KHÔNG CẦN ĐĂNG NHẬP - Chỉ cần nhận diện khuôn mặt
+     * @param userId ID của user được nhận diện
+     * @param confidence Độ chính xác (L2 distance, càng nhỏ càng tốt)
+     */
+    private void saveAttendanceRecord(String userId, double confidence) {
+        Log.d(TAG, "saveAttendanceRecord: START");
+        Log.d(TAG, "User ID: " + userId);
+        Log.d(TAG, "Confidence (distance): " + confidence);
+
+
+        // Lấy ngày hiện tại
+        String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                .format(new java.util.Date());
+
+        Log.d(TAG, "Checking last attendance record for today: " + today);
+        updateStatusText("Đang kiểm tra trạng thái điểm danh...");
+
+        // Query record cuối cùng trong ngày hôm nay
+        firestore.collection("attendanceRecords")
+                .whereEqualTo("uid", userId)
+                .whereEqualTo("date", today)
+                .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
+                .limit(1)
+                .get()
+                .addOnSuccessListener(querySnapshot -> {
+                    String checkType;
+
+                    if (querySnapshot.isEmpty()) {
+                        // Chưa có record nào trong ngày -> CHECK_IN
+                        checkType = "CHECK_IN";
+                        Log.d(TAG, "No record today -> CHECK_IN");
+                    } else {
+                        // Có record -> Kiểm tra type của record cuối cùng
+                        DocumentSnapshot lastRecord = querySnapshot.getDocuments().get(0);
+                        String lastCheckType = lastRecord.getString("checkType");
+
+                        if ("CHECK_IN".equals(lastCheckType)) {
+                            // Record cuối là CHECK_IN -> Bây giờ là CHECK_OUT
+                            checkType = "CHECK_OUT";
+                            Log.d(TAG, "Last record was CHECK_IN -> Now CHECK_OUT");
+                        } else {
+                            // Record cuối là CHECK_OUT -> Bây giờ là CHECK_IN (check-in lại)
+                            checkType = "CHECK_IN";
+                            Log.d(TAG, "Last record was CHECK_OUT -> Now CHECK_IN (again)");
+                        }
+                    }
+
+                    // Lưu record mới với checkType đã xác định
+                    saveAttendanceRecordWithType(userId, confidence, checkType);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to check last record, defaulting to CHECK_IN", e);
+                    // Nếu lỗi khi query, mặc định là CHECK_IN
+                    saveAttendanceRecordWithType(userId, confidence, "CHECK_IN");
+                });
+    }
+
+    /**
+     * Lưu attendance record với checkType đã xác định
+     * Lấy email từ face_embeddings collection (không cần đăng nhập)
+     */
+    private void saveAttendanceRecordWithType(String userId, double confidence, String checkType) {
+        Log.d(TAG, "=== saveAttendanceRecordWithType ===");
+        Log.d(TAG, "User ID: " + userId);
+        Log.d(TAG, "Check Type: " + checkType);
+
+        // Lấy email từ face_embeddings collection dựa trên userId
+        firestore.collection("face_embeddings").document(userId)
+                .get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    String userEmail = documentSnapshot.getString("userEmail");
+
+                    if (userEmail == null || userEmail.isEmpty()) {
+                        Log.e(TAG, "Cannot get userEmail from face_embeddings");
+                        userEmail = "unknown@example.com"; // Fallback
+                    }
+
+                    Log.d(TAG, "Retrieved user email: " + userEmail);
+
+                    // Tiến hành lưu attendance record
+                    saveAttendanceRecordToFirestore(userId, userEmail, confidence, checkType);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "Failed to get user email, using fallback", e);
+                    // Nếu không lấy được email, vẫn lưu với email mặc định
+                    saveAttendanceRecordToFirestore(userId, "unknown@example.com", confidence, checkType);
+                });
+    }
+
+    /**
+     * Lưu attendance record vào Firestore
+     */
+    private void saveAttendanceRecordToFirestore(String userId, String userEmail, double confidence, String checkType) {
+        long timestamp = System.currentTimeMillis();
+        String recordId = firestore.collection("attendanceRecords").document().getId();
+
+        Map<String, Object> attendanceData = new HashMap<>();
+        attendanceData.put("uid", userId);
+        attendanceData.put("userEmail", userEmail);
+        attendanceData.put("timestamp", timestamp);
+        attendanceData.put("date", new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new java.util.Date(timestamp)));
+        attendanceData.put("time", new java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new java.util.Date(timestamp)));
+        attendanceData.put("checkType", checkType);  // CHECK_IN hoặc CHECK_OUT
+        attendanceData.put("method", "FACE_RECOGNITION");
+        attendanceData.put("confidence", confidence);
+        attendanceData.put("status", "PRESENT");
+        attendanceData.put("deviceInfo", android.os.Build.MODEL);
+
+        Log.d(TAG, "Attendance record ID: " + recordId);
+        Log.d(TAG, "Saving to Firestore...");
+
+        String statusMessage = checkType.equals("CHECK_IN") ? "Đang lưu check-in..." : "Đang lưu check-out...";
+        updateStatusText(statusMessage);
+
+        firestore.collection("attendanceRecords").document(recordId)
+                .set(attendanceData)
+                .addOnSuccessListener(aVoid -> {
+                    Log.d(TAG, "=== ATTENDANCE RECORD SAVED SUCCESSFULLY ===");
+
+                    String checkTypeVN = checkType.equals("CHECK_IN") ? "Check-in" : "Check-out";
+
+                    runOnUiThread(() -> {
+                        String message = String.format(Locale.getDefault(),
+                            "%s thành công!\nĐộ chính xác: %.3f", checkTypeVN, confidence);
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+                        updateStatusText("✅ " + checkTypeVN + " thành công");
+                    });
+                    isProcessing = false;
+
+                    // Đợi 1.5 giây rồi thoát
+                    new android.os.Handler().postDelayed(this::finish, 1500);
+                })
+                .addOnFailureListener(e -> {
+                    Log.e(TAG, "=== FAILED TO SAVE ATTENDANCE RECORD ===");
+                    Log.e(TAG, "Error: " + e.getMessage());
+                    e.printStackTrace();
+
+                    runOnUiThread(() -> {
+                        String errorMsg = "Lưu điểm danh thất bại: " + e.getMessage();
+                        Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+                        updateStatusText("❌ " + errorMsg);
+                    });
+                    isProcessing = false;
+                });
     }
 
     @Override

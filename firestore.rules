@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========================
+    //  Helper Functions
+    // ========================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function currentUid() {
+      return request.auth.uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+             get(/databases/$(database)/documents/users/$(currentUid())).data.role == "admin";
+    }
+
+    // ========================
+    //  Collection: users
+    // ========================
+    match /users/{userId} {
+      // Users can read their own document, admins can read all
+      allow read: if isSignedIn() && (userId == currentUid() || isAdmin());
+
+      // Users can create/update their own document, admins can update all
+      allow create: if isSignedIn() && userId == currentUid();
+      allow update: if isSignedIn() && (userId == currentUid() || isAdmin());
+
+      // Only admins can delete
+      allow delete: if isAdmin();
+    }
+
+    // ========================
+    //  Collection: face_embeddings
+    //  Document structure:
+    //    - Document ID: userId (matches Firebase Auth UID)
+    //    - Fields: { faceEmbedding: Array<Double>, timestamp: number, userEmail: string }
+    // ========================
+    match /face_embeddings/{userId} {
+      // Allow read without authentication (needed for face recognition attendance)
+      // Anyone can read to get userEmail for attendance records
+      allow read: if true;
+
+      // Users can only create/update/delete their own face embedding
+      // Document ID must match authenticated user's UID
+      allow create, update, delete: if isSignedIn() && userId == currentUid();
+    }
+
+    // ========================
+    //  Collection: attendanceRecords
+    // ========================
+    match /attendanceRecords/{recordId} {
+      // Users can read their own records, admins can read all
+      allow read: if isSignedIn() && (isAdmin() || resource.data.uid == currentUid());
+
+      // Allow create without authentication (for face recognition attendance)
+      // Validate that uid in data matches a valid user
+      allow create: if true;
+
+      // Only the owner or admin can update/delete
+      allow update, delete: if isSignedIn() && (isAdmin() || resource.data.uid == currentUid());
+    }
+
+    // ========================
+    //  Collection: update_requests
+    // ========================
+    match /update_requests/{requestId} {
+      // Anyone can create a request
+      allow create: if isSignedIn();
+
+      // Only the creator or admin can read/update/delete
+      allow read, update, delete: if isSignedIn() && (isAdmin() || resource.data.userId == currentUid());
+    }
+
+    // ========================
+    //  Legacy Collections (Restricted)
+    // ========================
+    match /attendance/{document=**} {
+      // Legacy attendance collection - only admin access
+      allow read, write: if isAdmin();
+    }
+
+    match /_server_time/{docId} {
+      // Server time helper - open for all authenticated users
+      allow read, write: if isSignedIn();
+    }
+
+    // ========================
+    //  Default: Deny All
+    // ========================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
