@@ -20,8 +20,10 @@ import androidx.fragment.app.Fragment;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.example.timemaster.R;
+import com.example.timemaster.data.model.DayAttendance;
 import com.example.timemaster.data.model.StatusType;
 import com.example.timemaster.data.model.UserAttendance;
+import com.example.timemaster.data.model.WeekAttendance;
 import com.example.timemaster.ui.widget.SyncedHorizontalScrollView;
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.data.PieData;
@@ -114,7 +116,7 @@ public class AdminStatsFragment extends Fragment {
             }
         });
 
-        // ---- Chọn ngày (hiện tại dùng để hiển thị thôi) ----
+        // ---- Chọn ngày ----
         textViewSelectedDate.setText(DF.format(selectedDate.getTime()));
         layoutPickDate.setOnClickListener(view -> {
             int y = selectedDate.get(Calendar.YEAR);
@@ -124,6 +126,7 @@ public class AdminStatsFragment extends Fragment {
                     (w, year, month, dayOfMonth) -> {
                         selectedDate.set(year, month, dayOfMonth);
                         textViewSelectedDate.setText(DF.format(selectedDate.getTime()));
+                        onDateSelected();
                     }, y, m, d);
             dialog.show();
         });
@@ -198,6 +201,41 @@ public class AdminStatsFragment extends Fragment {
         vm.loadData();
 
         return v;
+    }
+
+    // ---- Xử lý khi người dùng chọn ngày mới từ DatePicker ----
+    private void onDateSelected() {
+        List<WeekAttendance> weeks = vm.getWeeksLiveData().getValue();
+        if (weeks == null) return;
+
+        boolean dateFound = false;
+        for (int i = 0; i < weeks.size(); i++) {
+            WeekAttendance week = weeks.get(i);
+            if (week.getDays() == null || week.getDays().isEmpty()) continue;
+
+            for (int j = 0; j < week.getDays().size(); j++) {
+                DayAttendance day = week.getDays().get(j);
+                if (day.getDate() == null) continue;
+
+                Calendar dayCal = Calendar.getInstance();
+                dayCal.setTime(day.getDate());
+
+                if (dayCal.get(Calendar.YEAR) == selectedDate.get(Calendar.YEAR) &&
+                        dayCal.get(Calendar.DAY_OF_YEAR) == selectedDate.get(Calendar.DAY_OF_YEAR)) {
+
+                    vm.setCurrentWeekIndex(i);
+                    vm.setCurrentDayIndex(j);
+                    renderAll(); // Render lại toàn bộ vì tuần có thể thay đổi
+                    dateFound = true;
+                    break;
+                }
+            }
+            if (dateFound) break;
+        }
+
+        if (!dateFound) {
+            Toast.makeText(getContext(), "Không có dữ liệu cho ngày đã chọn. Vui lòng chọn trong 4 tuần gần nhất.", Toast.LENGTH_LONG).show();
+        }
     }
 
     // =========================

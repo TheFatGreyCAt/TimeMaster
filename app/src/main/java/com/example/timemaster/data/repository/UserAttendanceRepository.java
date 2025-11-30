@@ -72,21 +72,34 @@ public class UserAttendanceRepository {
         // 2. Query Firestore: tất cả record của user trong tuần này
         db.collection("attendanceRecords")
                 .whereEqualTo("uid", uid)
-                .whereGreaterThanOrEqualTo("date", startOfWeek)
-                .whereLessThan("date", endOfWeek)
+                .whereGreaterThanOrEqualTo("timestamp", startOfWeek.getTime())
+                .whereLessThan("timestamp", endOfWeek.getTime())
                 .get()
                 .addOnSuccessListener(new OnSuccessListener<QuerySnapshot>() {
                     @Override
                     public void onSuccess(QuerySnapshot snapshots) {
                         List<DocumentSnapshot> docs = snapshots.getDocuments();
 
-                        // Map yyyyMMdd -> doc
-                        Map<String, DocumentSnapshot> byDate = new HashMap<>();
+                        // Gom các document theo ngày + checkType
+                        // Map<yyyyMMdd><"CHECK_IN"|"CHECK_OUT"> = HH:mm
+                        Map<String, Map<String, String>> byDateAndType = new HashMap<>();
                         for (DocumentSnapshot doc : docs) {
-                            Timestamp ts = doc.getTimestamp("date");
-                            if (ts == null) continue;
-                            String key = KEY_DF.format(ts.toDate());
-                            byDate.put(key, doc);
+                            // update: date -> timestamp
+                            String dateStr = doc.getString("date");  // "2025-11-30"
+                            String time = doc.getString("time");      // "09:30:00"
+                            String checkType = doc.getString("checkType");  // "CHECK_IN" hoặc "CHECK_OUT"
+
+                            if (dateStr == null || time == null) continue;
+
+                            String timeStr = time.length() >= 5 ? time.substring(0, 5) : time;  // "09:30"
+                            String dayKey = dateStr.replace("-", "");  // "20251130"
+
+                            if (!byDateAndType.containsKey(dayKey)) {
+                                byDateAndType.put(dayKey, new HashMap<>());
+                            }
+                            if (checkType != null) {
+                                byDateAndType.get(dayKey).put(checkType, timeStr);
+                            }
                         }
 
                         // 3. Tạo đủ 7 CheckIn cho Thứ 2 → CN
@@ -99,16 +112,14 @@ public class UserAttendanceRepository {
                             String key = KEY_DF.format(date);
                             String displayDate = DISPLAY_DF.format(date); // "Thứ hai, 01/12/2025"
 
-                            DocumentSnapshot doc = byDate.get(key);
+                            Map<String, String> typeData = byDateAndType.get(key);
 
                             String in = null;
                             String out = null;
 
-                            if (doc != null) {
-                                Timestamp ciTs = doc.getTimestamp("checkIn");
-                                Timestamp coTs = doc.getTimestamp("checkOut");
-                                if (ciTs != null) in = TIME_DF.format(ciTs.toDate());
-                                if (coTs != null) out = TIME_DF.format(coTs.toDate());
+                            if (typeData != null) {
+                                in = typeData.get("CHECK_IN");
+                                out = typeData.get("CHECK_OUT");
                             }
 
                             // Dùng đúng constructor CheckIn(date, checkInTime, checkOutTime)

@@ -64,7 +64,7 @@ public class CheckIn {
     public int getStatusType() {
         return statusType;
     }
-    
+
     public String getCheckInTime() {
         if (timeIn == 0) return null;
         return new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date(timeIn));
@@ -86,19 +86,26 @@ public class CheckIn {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
             Date ruleIn = sdf.parse("08:00");
             Date ruleOut = sdf.parse("17:30");
-            
+
             Date actualIn = sdf.parse(getCheckInTime());
+
+            if (actualIn.after(ruleOut)) {
+                status = "Vắng mặt";
+                statusType = 3;
+                return;
+            }
+
             String checkOutTimeStr = getCheckOutTime();
             Date actualOut = (checkOutTimeStr == null) ? null : sdf.parse(checkOutTimeStr);
 
             boolean late = actualIn.after(ruleIn);
-            
+
             if (actualOut == null) { // Not checked out yet
                 status = late ? "Đi trễ" : "Đúng giờ";
                 statusType = late ? 1 : 0;
                 return;
             }
-            
+
             boolean early = actualOut.before(ruleOut);
 
             if (late && early) {

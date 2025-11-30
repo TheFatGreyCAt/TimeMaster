@@ -11,13 +11,15 @@ public class UserAttendance {
     private static final String START = "08:00";
     private static final String END   = "17:30";
 
+    private final String uid;
     private final String name;
     private final String checkIn;   // "HH:mm" hoặc null
     private final String checkOut;  // "HH:mm" hoặc null
     private final int statusType;
     private final String statusText;
 
-    public UserAttendance(String name, String checkIn, String checkOut) {
+    public UserAttendance(String uid, String name, String checkIn, String checkOut) {
+        this.uid = uid;
         this.name = name;
         this.checkIn = checkIn;
         this.checkOut = checkOut;
@@ -26,7 +28,7 @@ public class UserAttendance {
     }
 
     private int evalStatus(String in, String out) {
-        // ABSENT nếu thiếu 1 trong 2 mốc
+        // Vắng mặt nếu không chấm công cả vào và ra
         if (in == null || out == null) return StatusType.ABSENT;
 
         try {
@@ -35,11 +37,20 @@ public class UserAttendance {
             long tStart = TF.parse(START).getTime();
             long tEnd   = TF.parse(END).getTime();
 
-            boolean late = tIn > tStart;
-            boolean early = tOut < tEnd;
+            boolean lateIn = tIn > tStart;
+            boolean earlyOut = tOut < tEnd;
 
-            if (late) return StatusType.LATE;         // Ưu tiên LATE nếu cả hai
-            if (early) return StatusType.EARLY_OUT;
+            // Ưu tiên Về sớm: nếu về sớm hơn 17h30, trạng thái là Về sớm
+            if (earlyOut) {
+                return StatusType.EARLY_OUT;
+            }
+
+            // Nếu không về sớm, kiểm tra xem có đi trễ không
+            if (lateIn) {
+                return StatusType.LATE;
+            }
+
+            // Nếu không về sớm và không đi trễ, thì là Đúng giờ
             return StatusType.PRESENT;
 
         } catch (ParseException e) {
@@ -47,9 +58,18 @@ public class UserAttendance {
         }
     }
 
+    public String getUid() { return uid; }
     public String getName() { return name; }
     public String getCheckInTime() { return checkIn; }
     public String getCheckOutTime() { return checkOut; }
     public int getStatusType() { return statusType; }
     public String getStatusText() { return statusText; }
+    public long getCheckInTimestamp() {
+        if (checkIn == null) return 0;
+        try {
+            return TF.parse(checkIn).getTime();
+        } catch (ParseException e) {
+            return 0;
+        }
+    }
 }

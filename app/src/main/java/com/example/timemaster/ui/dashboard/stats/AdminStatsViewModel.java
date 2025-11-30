@@ -14,6 +14,8 @@ import com.example.timemaster.data.repository.AttendanceRepositoryFirestore;
 import java.text.Normalizer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -65,10 +67,19 @@ public class AdminStatsViewModel extends ViewModel {
             public void onSuccess(List<WeekAttendance> weeks) {
                 loading.postValue(false);
                 if (weeks != null && !weeks.isEmpty()) {
-                    if (currentWeekIndex >= weeks.size()) {
-                        currentWeekIndex = weeks.size() - 1;
-                    }
-                    if (currentWeekIndex < 0) currentWeekIndex = 0;
+                    // Mặc định là tuần hiện tại
+                    currentWeekIndex = weeks.size() - 1;
+
+                    // Mặc định là ngày hôm nay
+                    Calendar today = Calendar.getInstance();
+                    // DAY_OF_WEEK: CN=1, T2=2, ..., T7=7
+                    int dayOfWeek = today.get(Calendar.DAY_OF_WEEK);
+                    // Chuyển đổi sang index 0-6 (T2-CN)
+                    currentDayIndex = (dayOfWeek == Calendar.SUNDAY) ? 6 : dayOfWeek - 2;
+
+                } else {
+                    currentWeekIndex = 0;
+                    currentDayIndex = 0;
                 }
                 weeksLiveData.postValue(weeks);
             }
@@ -257,6 +268,10 @@ public class AdminStatsViewModel extends ViewModel {
             if (!matchStatus(ua)) continue;
             result.add(ua);
         }
+
+        // Sắp xếp theo thời gian check-in giảm dần (người mới nhất lên đầu)
+        result.sort((u1, u2) -> Long.compare(u2.getCheckInTimestamp(), u1.getCheckInTimestamp()));
+
         return result;
     }
 

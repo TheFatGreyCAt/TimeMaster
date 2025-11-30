@@ -3,8 +3,8 @@ package com.example.timemaster.data.repository;
 import com.example.timemaster.data.model.DayAttendance;
 import com.example.timemaster.data.model.UserAttendance;
 import com.example.timemaster.data.model.WeekAttendance;
-import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldPath;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.text.SimpleDateFormat;
@@ -35,19 +35,46 @@ public class AttendanceRepositoryFirestore implements AttendanceRepository {
         Date startDate = start4Weeks.getTime();
 
         db.collection("attendanceRecords")
-                .whereGreaterThanOrEqualTo("date", startDate)
+                .whereGreaterThanOrEqualTo("timestamp", startDate.getTime())
                 .get()
                 .addOnSuccessListener(querySnapshot -> {
                     List<DocumentSnapshot> docs = querySnapshot.getDocuments();
-                    List<WeekAttendance> weeks =
-                            buildWeeksFromSnapshots(docs, startCurrentWeek);
-                    callback.onSuccess(weeks);
+                    // Lấy danh sách UID không trùng lặp
+                    Set<String> uids = new HashSet<>();
+                    for (DocumentSnapshot doc : docs) {
+                        String uid = doc.getString("uid");
+                        if (uid != null) {
+                            uids.add(uid);
+                        }
+                    }
+
+                    if (uids.isEmpty()) {
+                        List<WeekAttendance> weeks = buildWeeksFromSnapshots(docs, startCurrentWeek, new HashMap<>());
+                        callback.onSuccess(weeks);
+                        return;
+                    }
+
+                    // Lấy thông tin user từ collection "users"
+                    db.collection("users").whereIn(FieldPath.documentId(), new ArrayList<>(uids)).get()
+                            .addOnSuccessListener(userDocs -> {
+                                Map<String, String> userNames = new HashMap<>();
+                                for (DocumentSnapshot userDoc : userDocs) {
+                                    String uid = userDoc.getId();
+                                    String fullName = userDoc.getString("fullName");
+                                    if (uid != null && fullName != null) {
+                                        userNames.put(uid, fullName);
+                                    }
+                                }
+                                List<WeekAttendance> weeks = buildWeeksFromSnapshots(docs, startCurrentWeek, userNames);
+                                callback.onSuccess(weeks);
+                            })
+                            .addOnFailureListener(callback::onError);
                 })
                 .addOnFailureListener(callback::onError);
     }
 
     private List<WeekAttendance> buildWeeksFromSnapshots(List<DocumentSnapshot> docs,
-                                                         Date startCurrentWeek) {
+                                                         Date startCurrentWeek, Map<String, String> userNames) {
 
         // Gom các doc theo ngày yyyyMMdd
         SimpleDateFormat keyFormat =
@@ -55,9 +82,11 @@ public class AttendanceRepositoryFirestore implements AttendanceRepository {
         Map<String, List<DocumentSnapshot>> byDate = new HashMap<>();
 
         for (DocumentSnapshot doc : docs) {
-            Timestamp ts = doc.getTimestamp("date");
-            if (ts == null) continue;
-            String key = keyFormat.format(ts.toDate());
+            // Lấy date từ field "date" (chuỗi yyyy-MM-dd)
+            String dateStr = doc.getString("date");
+            if (dateStr == null) continue;
+
+            String key = dateStr.replace("-", "");  // "2025-11-30" -> "20251130"
             if (!byDate.containsKey(key)) byDate.put(key, new ArrayList<>());
             byDate.get(key).add(doc);
         }
@@ -79,25 +108,50 @@ public class AttendanceRepositoryFirestore implements AttendanceRepository {
                 List<DocumentSnapshot> dayDocs =
                         byDate.getOrDefault(key, Collections.emptyList());
 
-                List<UserAttendance> uaList = new ArrayList<>();
-                for (DocumentSnapshot doc : dayDocs) {
-                    String name = doc.getString("fullName");
-                    Timestamp ciTs = doc.getTimestamp("checkIn");
-                    Timestamp coTs = doc.getTimestamp("checkOut");
+                // Gom các document cùng user trong ngày
+                // Map<uid, {checkIn, checkOut, name}>
+                Map<String, Map<String, String>> userDataMap = new HashMap<>();
 
-                    String checkIn = null;
-                    String checkOut = null;
-                    if (ciTs != null) {
-                        checkIn = new SimpleDateFormat("HH:mm", Locale.getDefault())
-                                .format(ciTs.toDate());
+                for (DocumentSnapshot doc : dayDocs) {
+                    String uid = doc.getString("uid");
+                    String time = doc.getString("time");  // "09:30:00"
+                    String checkType = doc.getString("checkType");  // "CHECK_IN" hoặc "CHECK_OUT"
+
+                    if (time == null || uid == null) continue;
+
+                    // Convert "09:30:00" -> "09:30"
+                    String timeStr = time.length() >= 5 ? time.substring(0, 5) : time;
+
+                    if (!userDataMap.containsKey(uid)) {
+                        Map<String, String> data = new HashMap<>();
+                        String name = userNames.getOrDefault(uid, "Tên không xác định");
+                        data.put("name", name);
+                        data.put("checkIn", null);
+                        data.put("checkOut", null);
+                        userDataMap.put(uid, data);
                     }
-                    if (coTs != null) {
-                        checkOut = new SimpleDateFormat("HH:mm", Locale.getDefault())
-                                .format(coTs.toDate());
+
+                    // Gán check-in hoặc check-out dựa trên checkType
+                    Map<String, String> userData = userDataMap.get(uid);
+                    if ("CHECK_IN".equals(checkType)) {
+                        userData.put("checkIn", timeStr);
+                    } else if ("CHECK_OUT".equals(checkType)) {
+                        userData.put("checkOut", timeStr);
                     }
+                }
+
+                // Tạo UserAttendance từ data đã gom
+                List<UserAttendance> uaList = new ArrayList<>();
+                for (Map.Entry<String, Map<String, String>> entry : userDataMap.entrySet()) {
+                    String uid = entry.getKey();
+                    Map<String, String> userData = entry.getValue();
+                    String name = userData.get("name");
+                    String checkIn = userData.get("checkIn");
+                    String checkOut = userData.get("checkOut");
 
                     uaList.add(new UserAttendance(
-                            name != null ? name : "",
+                            uid,
+                            name,
                             checkIn,
                             checkOut
                     ));
