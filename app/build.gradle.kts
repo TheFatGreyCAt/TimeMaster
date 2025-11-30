@@ -33,7 +33,7 @@ android {
     buildFeatures {
         viewBinding = true
     }
-    
+
     aaptOptions {
         noCompress.add("tflite")
     }
@@ -52,10 +52,18 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.0.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
-    implementation("com.google.firebase:firebase-storage")
     implementation("com.google.firebase:firebase-analytics")
-    implementation("com.google.firebase:firebase-functions") // Thư viện để gọi Cloud Functions
+    implementation("com.google.firebase:firebase-functions")
     implementation("com.google.android.gms:play-services-auth:21.2.0")
+    // Tối ưu hóa Firebase Storage: Đã có trong BOM, nhưng giữ lại nếu cần phiên bản cụ thể
+    implementation("com.google.firebase:firebase-storage")
+
+    // Thêm Activity KTX (Cần cho ActivityResultLauncher)
+    implementation("androidx.activity:activity-ktx:1.8.1")
+
+    // Thêm Glide (Để tải và hiển thị ảnh)
+    implementation ("com.github.bumptech.glide:glide:4.16.0")
+    annotationProcessor ("com.github.bumptech.glide:compiler:4.16.0")
 
     // Circle ImageView
     implementation("de.hdodenhof:circleimageview:3.1.0")
