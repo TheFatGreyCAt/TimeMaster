@@ -1,7 +1,6 @@
 package com.example.timemaster.ui.dashboard.user;
 
 import android.annotation.SuppressLint;
-import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -14,15 +13,14 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import com.example.timemaster.R;
-import com.google.firebase.Timestamp;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 
 import java.text.SimpleDateFormat;
@@ -41,6 +39,8 @@ public class UserStatusFragment extends Fragment {
     // Firebase
     private FirebaseFirestore db;
     private FirebaseUser currentUser;
+    private ListenerRegistration attendanceListener;
+
 
     // Cấu hình giờ làm việc (Bạn có thể đưa cái này vào Setting sau này)
     private static final int START_HOUR = 8; // 8 giờ sáng là mốc đúng giờ
@@ -85,87 +85,168 @@ public class UserStatusFragment extends Fragment {
 
         // 2. Hiển thị tên & Lời chào
         if (currentUser != null) {
-            String name = currentUser.getDisplayName();
-            tvUsername.setText((name != null && !name.isEmpty()) ? name + "!" : "Bạn!");
-
             // Lời chào theo giờ
             int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
             if (hour < 12) tvGreeting.setText("Chào buổi sáng,");
             else if (hour < 18) tvGreeting.setText("Chào buổi chiều,");
             else tvGreeting.setText("Chào buổi tối,");
+
+            // Lấy fullName từ Firestore collection "users"
+            db.collection("users")
+                    .document(currentUser.getUid())
+                    .get()
+                    .addOnSuccessListener(documentSnapshot -> {
+                        if (documentSnapshot.exists()) {
+                            String fullName = documentSnapshot.getString("fullName");
+                            if (fullName != null && !fullName.isEmpty()) {
+                                tvUsername.setText(fullName + "!");
+                            } else {
+                                // Fallback to displayName nếu không có fullName
+                                String name = currentUser.getDisplayName();
+                                tvUsername.setText((name != null && !name.isEmpty()) ? name + "!" : "Bạn!");
+                            }
+                        } else {
+                            tvUsername.setText("Bạn!");
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        // Nếu lỗi, sử dụng displayName
+                        String name = currentUser.getDisplayName();
+                        tvUsername.setText((name != null && !name.isEmpty()) ? name + "!" : "Bạn!");
+                    });
         }
     }
 
     private void fetchAttendanceStatus() {
         if (currentUser == null) return;
 
-        // Lấy ngày hôm nay (dạng String dd/MM/yyyy để query)
-        // Lưu ý: Trong CheckInActivity bạn lưu date format nào thì ở đây dùng format đó
-        // Giả sử bạn lưu field "date" là String "dd/MM/yyyy"
-        String todayStr = new SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(new Date());
+        // Lấy ngày hôm nay (dạng yyyy-MM-dd để query theo format mới)
+        String todayStr = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
 
-        // Truy vấn bảng attendanceRecords
-        db.collection("attendanceRecords")
+        if (attendanceListener != null) {
+            attendanceListener.remove();
+        }
+
+        // Truy vấn tất cả bản ghi điểm danh trong ngày hôm nay
+        attendanceListener = db.collection("attendanceRecords")
                 .whereEqualTo("uid", currentUser.getUid())
                 .whereEqualTo("date", todayStr)
-                .limit(1) // Chỉ lấy 1 bản ghi trong ngày
+                .orderBy("timestamp", Query.Direction.DESCENDING) // Sắp xếp theo thời gian mới nhất
                 .addSnapshotListener((snapshots, error) -> {
+                    // Kiểm tra Fragment vẫn còn attached trước khi xử lý
+                    if (!isAdded() || getContext() == null) return;
+
                     if (error != null) {
-                        Toast.makeText(getContext(), "Lỗi lấy dữ liệu điểm danh", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(requireContext(), "Lỗi lấy dữ liệu điểm danh", Toast.LENGTH_SHORT).show();
                         return;
                     }
 
                     if (snapshots != null && !snapshots.isEmpty()) {
-                        // --- TRƯỜNG HỢP: ĐÃ CHECK-IN ---
-                        DocumentSnapshot doc = snapshots.getDocuments().get(0);
-                        processAttendanceData(doc);
+                        // ĐÃ CÓ DỮ LIỆU ĐIỂM DANH
+                        processAttendanceData(snapshots.getDocuments());
                     } else {
-                        // --- TRƯỜNG HỢP: CHƯA CÓ DỮ LIỆU ---
+                        // CHƯA CÓ DỮ LIỆU
                         processNoAttendanceData();
                     }
                 });
     }
 
-    private void processAttendanceData(DocumentSnapshot doc) {
-        Timestamp checkInTimestamp = doc.getTimestamp("checkInTime");
-        Timestamp checkOutTimestamp = doc.getTimestamp("checkOutTime");
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        // Hủy listener để tránh memory leak
+        if (attendanceListener != null) {
+            attendanceListener.remove();
+            attendanceListener = null;
+        }
+    }
 
-        // 1. Hiển thị giờ Check-in
-        if (checkInTimestamp != null) {
-            Date checkInDate = checkInTimestamp.toDate();
-            String timeStr = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(checkInDate);
-            tvCheckInTime.setText(timeStr);
 
-            // --- KIỂM TRA ĐÚNG GIỜ HAY TRỄ ---
-            Calendar calCheckIn = Calendar.getInstance();
-            calCheckIn.setTime(checkInDate);
+    @SuppressLint("SetTextI18n")
+    private void processAttendanceData(java.util.List<DocumentSnapshot> docs) {
+        // Tìm record CHECK_IN và CHECK_OUT mới nhất
+        Long latestCheckInMillis = null;
+        Long latestCheckOutMillis = null;
 
-            // Tạo mốc thời gian quy định (Ví dụ 8:00 sáng hôm nay)
-            Calendar calDeadline = Calendar.getInstance();
-            calDeadline.setTime(checkInDate); // Lấy cùng ngày tháng năm
-            calDeadline.set(Calendar.HOUR_OF_DAY, START_HOUR);
-            calDeadline.set(Calendar.MINUTE, START_MINUTE);
-            calDeadline.set(Calendar.SECOND, 0);
+        for (DocumentSnapshot doc : docs) {
+            String checkType = doc.getString("checkType");
+            Long timestampMillis = doc.getLong("timestamp");
 
-            if (calCheckIn.before(calDeadline) || calCheckIn.equals(calDeadline)) {
-                // -> ĐÚNG GIỜ (XANH LÁ)
-                setUIState(StatusState.ON_TIME);
-            } else {
-                // -> ĐI HỌC TRỄ (VÀNG)
-                setUIState(StatusState.LATE);
+            if (timestampMillis == null) continue;
+
+            if ("CHECK_IN".equals(checkType)) {
+                if (latestCheckInMillis == null || timestampMillis > latestCheckInMillis) {
+                    latestCheckInMillis = timestampMillis;
+                }
+            } else if ("CHECK_OUT".equals(checkType)) {
+                if (latestCheckOutMillis == null || timestampMillis > latestCheckOutMillis) {
+                    latestCheckOutMillis = timestampMillis;
+                }
             }
         }
 
+        // 1. Hiển thị giờ Check-in
+        if (latestCheckInMillis != null) {
+            Date checkInDate = new Date(latestCheckInMillis);
+            String timeStr = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(checkInDate);
+            tvCheckInTime.setText(timeStr);
+
+            // --- KIỂM TRA ĐÚNG GIỜ / MUỘN / VẮNG ---
+            Calendar calCheckIn = Calendar.getInstance();
+            calCheckIn.setTime(checkInDate);
+
+            int checkInHour = calCheckIn.get(Calendar.HOUR_OF_DAY);
+
+            // Nếu điểm danh sau 17h -> VẮNG
+            if (checkInHour >= END_WORK_HOUR) {
+                setUIState(StatusState.ABSENT);
+            } else {
+                // Tạo mốc thời gian quy định (8:00 sáng hôm nay)
+                Calendar calDeadline = Calendar.getInstance();
+                calDeadline.setTime(checkInDate);
+                calDeadline.set(Calendar.HOUR_OF_DAY, START_HOUR);
+                calDeadline.set(Calendar.MINUTE, START_MINUTE);
+                calDeadline.set(Calendar.SECOND, 0);
+
+                if (calCheckIn.before(calDeadline) || calCheckIn.equals(calDeadline)) {
+                    // -> ĐÚNG GIỜ (XANH LÁ)
+                    setUIState(StatusState.ON_TIME);
+                } else {
+                    // -> ĐI MUỘN (VÀNG)
+                    setUIState(StatusState.LATE);
+                }
+            }
+        } else {
+            tvCheckInTime.setText("--:--");
+            setUIState(StatusState.NOT_CHECKED_IN);
+        }
+
         // 2. Hiển thị giờ Check-out
-        if (checkOutTimestamp != null) {
-            Date checkOutDate = checkOutTimestamp.toDate();
+        if (latestCheckOutMillis != null) {
+            Date checkOutDate = new Date(latestCheckOutMillis);
             String timeOutStr = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(checkOutDate);
             tvCheckOutTime.setText(timeOutStr);
 
-            // Tính tổng giờ làm (nếu cần)
-            // ... logic tính toán ...
+            // 3. Tính tổng giờ làm (checkout - checkin)
+            if (latestCheckInMillis != null) {
+                long diffMillis = latestCheckOutMillis - latestCheckInMillis;
+                long hours = diffMillis / (1000 * 60 * 60);
+                long minutes = (diffMillis % (1000 * 60 * 60)) / (1000 * 60);
+
+                tvTotalHours.setText(hours + " giờ " + minutes + " phút");
+
+                // Cập nhật progress bar (giả sử 8 giờ = 100%)
+                int totalMinutes = (int) (hours * 60 + minutes);
+                int progress = Math.min(100, (totalMinutes * 100) / (8 * 60));
+                progressBar.setProgress(progress);
+            } else {
+                tvTotalHours.setText("0 giờ 0 phút");
+                progressBar.setProgress(0);
+            }
         } else {
             tvCheckOutTime.setText("--:--");
+            tvTotalHours.setText("0 giờ 0 phút");
+            progressBar.setProgress(0);
         }
     }
 
@@ -205,31 +286,31 @@ public class UserStatusFragment extends Fragment {
         switch (state) {
             case ON_TIME:
                 colorRes = Color.parseColor("#059669"); // Xanh lá đậm
-                bgDrawableRes = R.drawable.circle_green_light_bg; // Cần tạo drawable này hoặc dùng shape
+                bgDrawableRes = R.drawable.circle_green_light_bg;
                 statusText = "Đúng giờ";
-                iconRes = R.drawable.ic_check; // Icon tích
+                iconRes = R.drawable.ic_check;
                 break;
 
             case LATE:
                 colorRes = Color.parseColor("#D97706"); // Vàng cam
-                bgDrawableRes = R.drawable.circle_yellow_light_bg; // Cần tạo
-                statusText = "Điểm danh trễ";
-                iconRes = R.drawable.ic_check; // Hoặc icon cảnh báo
+                bgDrawableRes = R.drawable.circle_yellow_light_bg;
+                statusText = "Đi muộn";
+                iconRes = R.drawable.ic_check;
                 break;
 
             case ABSENT:
                 colorRes = Color.parseColor("#DC2626"); // Đỏ
-                bgDrawableRes = R.drawable.circle_red_light_bg; // Cần tạo
+                bgDrawableRes = R.drawable.circle_red_light_bg;
                 statusText = "Vắng mặt";
-                iconRes = R.drawable.ic_close; // Icon X
+                iconRes = R.drawable.ic_close;
                 break;
 
             case NOT_CHECKED_IN:
             default:
                 colorRes = Color.parseColor("#6B7280"); // Xám
-                bgDrawableRes = R.drawable.circle_gray_light_bg; // Cần tạo
+                bgDrawableRes = R.drawable.circle_gray_light_bg;
                 statusText = "Chưa điểm danh";
-                iconRes = R.drawable.ic_time; // Icon đồng hồ
+                iconRes = R.drawable.ic_time;
                 break;
         }
 
@@ -241,18 +322,7 @@ public class UserStatusFragment extends Fragment {
         ivCheckmark.setImageResource(iconRes);
         ivCheckmark.setColorFilter(colorRes);
 
-        // Đổi màu nền của icon (Nếu bạn dùng drawable shape)
-        // Lưu ý: Cần tạo các file xml drawable cho background hình tròn nhạt màu tương ứng
-        // Ở đây mình set tint tạm thời cho background nếu drawable hỗ trợ
-        ivCheckmark.setBackgroundTintList(ColorStateList.valueOf(adjustAlpha(colorRes, 0.2f)));
-    }
-
-    // Hàm phụ trợ để làm nhạt màu cho background (Alpha 20%)
-    private int adjustAlpha(int color, float factor) {
-        int alpha = Math.round(Color.alpha(color) * factor);
-        int red = Color.red(color);
-        int green = Color.green(color);
-        int blue = Color.blue(color);
-        return Color.argb(alpha, red, green, blue);
+        // Đổi màu nền của icon
+        ivCheckmark.setBackgroundResource(bgDrawableRes);
     }
 }

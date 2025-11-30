@@ -19,15 +19,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * Lấy dữ liệu chấm công theo tuần cho 1 user từ Firestore.
- *
- * Collection: attendanceRecords
- *   - uid: String
- *   - date: Timestamp (ngày làm, chuẩn hoá 00:00)
- *   - checkIn: Timestamp (có thể null)
- *   - checkOut: Timestamp (có thể null)
- */
 public class UserAttendanceRepository {
 
     private final FirebaseFirestore db = FirebaseFirestore.getInstance();
@@ -45,10 +36,6 @@ public class UserAttendanceRepository {
         void onError(Exception e);
     }
 
-    /**
-     * Lấy tuần chứa anchorDate (Thứ 2 → Chủ nhật) cho user uid.
-     * Nếu 1 ngày không có record => CheckIn sẽ "Vắng mặt" nhờ calculateStatus().
-     */
     public void getWeekForUser(String uid, Date anchorDate, OnWeekLoaded callback) {
         // 1. Tìm thứ 2 của tuần chứa anchorDate
         Calendar cal = Calendar.getInstance();

@@ -265,7 +265,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="28dp"
-                android:text="Check-in"
+                android:text="Check-in / Check-out"
                 android:textColor="#111827"
                 android:textSize="18sp"
                 android:fontFamily="sans-serif-medium"
