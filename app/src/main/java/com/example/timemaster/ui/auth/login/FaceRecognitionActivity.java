@@ -73,7 +73,7 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
         setContentView(R.layout.activity_face_recognition);
 
         previewView = findViewById(R.id.preview_view);
-        statusTextView = findViewById(R.id.text_recognition_result);
+        statusTextView = findViewById(R.id.text_status);
         graphicOverlay = findViewById(R.id.graphic_overlay);
 
         // Optionally read mode from intent
@@ -186,19 +186,29 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
         }
         isProcessing = true;
 
-        Log.d(TAG, "registerFaceEmbedding: Starting registration process");
+        Log.d(TAG, "=== registerFaceEmbedding: START ===");
         Log.d(TAG, "Embedding length: " + (embedding != null ? embedding.length : "null"));
 
         FirebaseUser currentUser = firebaseAuth.getCurrentUser();
         if (currentUser == null) {
             Log.e(TAG, "registerFaceEmbedding: currentUser is NULL - user not logged in!");
-            Toast.makeText(this, "Bạn phải đăng nhập để đăng ký khuôn mặt", Toast.LENGTH_LONG).show();
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Bạn phải đăng nhập để đăng ký khuôn mặt", Toast.LENGTH_LONG).show();
+                updateStatusText("Lỗi: Chưa đăng nhập");
+            });
             isProcessing = false;
             return;
         }
 
         Log.d(TAG, "Current user UID: " + currentUser.getUid());
         Log.d(TAG, "Current user email: " + currentUser.getEmail());
+        Log.d(TAG, "Is email verified: " + currentUser.isEmailVerified());
+
+        if (embedding == null || embedding.length == 0) {
+            Log.e(TAG, "registerFaceEmbedding: Invalid embedding");
+            isProcessing = false;
+            return;
+        }
 
         List<Double> embeddingList = new ArrayList<>();
         for (float v : embedding) embeddingList.add((double) v);
@@ -210,22 +220,37 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
         data.put("timestamp", System.currentTimeMillis());
         data.put("userEmail", currentUser.getEmail());
 
-        Log.d(TAG, "Saving to Firestore: collection=face_embeddings, document=" + currentUser.getUid());
+        Log.d(TAG, "Firestore path: face_embeddings/" + currentUser.getUid());
+        Log.d(TAG, "Attempting to save to Firestore...");
+
+        updateStatusText("Đang lưu dữ liệu khuôn mặt...");
 
         firestore.collection("face_embeddings").document(currentUser.getUid())
                 .set(data)
                 .addOnSuccessListener(aVoid -> {
-                    Log.d(TAG, "✅ Firestore save SUCCESS!");
-                    Toast.makeText(this, "Đăng ký khuôn mặt thành công", Toast.LENGTH_SHORT).show();
-                    updateStatusText("Đã đăng ký - bạn có thể thoát");
+                    Log.d(TAG, "=== Firestore SAVE SUCCESS! ===");
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Đăng ký khuôn mặt thành công", Toast.LENGTH_SHORT).show();
+                        updateStatusText("✅ Đã đăng ký thành công");
+                    });
                     isProcessing = false;
-                    finish();
+                    // Đợi 1 giây rồi thoát
+                    new android.os.Handler().postDelayed(this::finish, 1000);
                 })
                 .addOnFailureListener(e -> {
-                    Log.e(TAG, "❌ Firestore save FAILED!", e);
-                    Log.e(TAG, "Error message: " + e.getMessage());
+                    Log.e(TAG, "=== Firestore SAVE FAILED! ===");
                     Log.e(TAG, "Error class: " + e.getClass().getName());
-                    Toast.makeText(this, "Lưu embedding thất bại: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    Log.e(TAG, "Error message: " + e.getMessage());
+                    if (e.getCause() != null) {
+                        Log.e(TAG, "Error cause: " + e.getCause().getMessage());
+                    }
+                    e.printStackTrace();
+
+                    runOnUiThread(() -> {
+                        String errorMsg = "Lưu thất bại: " + e.getMessage();
+                        Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
+                        updateStatusText("❌ " + errorMsg);
+                    });
                     isProcessing = false;
                 });
     }

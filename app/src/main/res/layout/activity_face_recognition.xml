@@ -1,31 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/fireTopLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000"
+    android:background="#000000"
     android:keepScreenOn="true">
 
+    <!-- Camera Preview -->
     <androidx.camera.view.PreviewView
         android:id="@+id/preview_view"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:scaleType="fitCenter" />
 
+    <!-- Graphic Overlay for Face Detection -->
     <com.example.timemaster.utils.camerax.GraphicOverlay
         android:id="@+id/graphic_overlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="match_parent" />
 
+    <!-- Status Text -->
     <TextView
-        android:id="@+id/text_recognition_result"
-        android:layout_width="match_parent"
+        android:id="@+id/text_status"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
         android:layout_alignParentTop="true"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="32dp"
         android:padding="16dp"
-        android:background="#AA000000"
+        android:background="#CC000000"
         android:textColor="#FFFFFF"
-        android:textSize="16sp"
+        android:textSize="18sp"
+        android:textStyle="bold"
         android:gravity="center"
         android:text="Đang khởi động camera..." />
 

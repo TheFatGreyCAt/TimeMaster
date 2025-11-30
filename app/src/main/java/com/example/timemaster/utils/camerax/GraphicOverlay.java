@@ -101,30 +101,42 @@ public class GraphicOverlay extends View {
         float viewWidth = getWidth();
         float viewHeight = getHeight();
 
-        // Swap width/height for portrait mode (rotation is 90 or 270)
-        float imageViewWidth = imageHeight;
-        float imageViewHeight = imageWidth;
+        // For portrait mode, camera image is rotated 90 degrees
+        // So we need to swap width and height
+        float imageAspectRatio = (float) imageWidth / imageHeight;
+        float viewAspectRatio = viewWidth / viewHeight;
 
-        float scaleX = viewWidth / imageViewWidth;
-        float scaleY = viewHeight / imageViewHeight;
+        float scaleX, scaleY;
 
-        // Use min to avoid cropping
-        scaleFactor = Math.min(scaleX, scaleY);
+        // Scale to fill the view while maintaining aspect ratio
+        if (viewAspectRatio > imageAspectRatio) {
+            // View is wider, scale based on height
+            scaleY = viewHeight / imageWidth;
+            scaleX = scaleY;
+        } else {
+            // View is taller, scale based on width
+            scaleX = viewWidth / imageHeight;
+            scaleY = scaleX;
+        }
+
+        scaleFactor = scaleX;
 
         transformMatrix.reset();
 
-        // For front camera, mirror horizontally first
+        // For front camera, mirror horizontally
         if (facing == 1) {
-            transformMatrix.postScale(-1f, 1f);
-            transformMatrix.postTranslate(imageViewWidth, 0);
+            transformMatrix.postScale(-1f, 1f, imageHeight / 2f, 0f);
         }
 
-        // Scale to fit view
-        transformMatrix.postScale(scaleFactor, scaleFactor);
+        // Scale the image
+        transformMatrix.postScale(scaleX, scaleY);
 
-        // Center the image
-        float dx = (viewWidth - imageViewWidth * scaleFactor) / 2;
-        float dy = (viewHeight - imageViewHeight * scaleFactor) / 2;
+        // Center the image in the view
+        float scaledImageWidth = imageHeight * scaleX;
+        float scaledImageHeight = imageWidth * scaleY;
+        float dx = (viewWidth - scaledImageWidth) / 2f;
+        float dy = (viewHeight - scaledImageHeight) / 2f;
+
         transformMatrix.postTranslate(dx, dy);
     }
 }

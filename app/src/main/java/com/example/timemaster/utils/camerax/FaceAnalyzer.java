@@ -41,7 +41,6 @@ public class FaceAnalyzer implements ImageAnalysis.Analyzer {
     private boolean isProcessing = false;
     private String currentMessage = "Đặt khuôn mặt vào khung hình";
     private boolean needsUpdateSourceInfo = true;
-    private ImageProxy currentImageProxy; // Store current ImageProxy for bitmap conversion
 
     public FaceAnalyzer(GraphicOverlay graphicOverlay, FaceNetModel faceNetModel, FaceRecognitionProcessor listener, int cameraFacing) {
         this.graphicOverlay = graphicOverlay;
@@ -96,8 +95,6 @@ public class FaceAnalyzer implements ImageAnalysis.Analyzer {
             return;
         }
 
-        // Store ImageProxy for bitmap conversion
-        currentImageProxy = imageProxy;
 
         InputImage image = InputImage.fromMediaImage(mediaImage, imageProxy.getImageInfo().getRotationDegrees());
 
@@ -110,7 +107,6 @@ public class FaceAnalyzer implements ImageAnalysis.Analyzer {
                 })
                 .addOnCompleteListener(task -> {
                     imageProxy.close();
-                    currentImageProxy = null;
                     isProcessing = false;
                 });
     }
@@ -219,49 +215,73 @@ public class FaceAnalyzer implements ImageAnalysis.Analyzer {
     @androidx.camera.core.ExperimentalGetImage
     private void processFaceRecognition(Face face, ImageProxy imageProxy) {
         try {
+            Log.d(TAG, "processFaceRecognition: Starting bitmap conversion");
             Bitmap bitmap = imageProxyToBitmap(imageProxy);
             if (bitmap == null) {
-                listener.onFailure(new Exception("Cannot convert ImageProxy to Bitmap"));
+                Log.e(TAG, "processFaceRecognition: Bitmap is NULL after conversion");
+                listener.onFailure(new Exception("Cannot convert ImageProxy to Bitmap - check logs for details"));
                 resetValidation();
                 return;
             }
+
+            Log.d(TAG, "processFaceRecognition: Bitmap created successfully: " + bitmap.getWidth() + "x" + bitmap.getHeight());
 
             // Mirror bitmap if using front camera
             if (cameraFacing == androidx.camera.core.CameraSelector.LENS_FACING_FRONT) {
                 android.graphics.Matrix matrix = new android.graphics.Matrix();
                 matrix.preScale(-1.0f, 1.0f);
                 bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, false);
+                Log.d(TAG, "processFaceRecognition: Bitmap mirrored for front camera");
             }
 
+            Log.d(TAG, "processFaceRecognition: Getting face embedding...");
             float[] embedding = faceNetModel.getFaceEmbedding(bitmap, new RectF(face.getBoundingBox()));
             if (embedding != null) {
+                Log.d(TAG, "processFaceRecognition: Embedding generated successfully, length=" + embedding.length);
                 listener.onFaceDetected(face, embedding);
                 currentMessage = "Đang nhận diện...";
                 updateUI(face, true, currentMessage);
             } else {
+                Log.e(TAG, "processFaceRecognition: Failed to generate embedding");
                 listener.onFailure(new Exception("Failed to generate face embedding"));
                 resetValidation();
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error in processFaceRecognition", e);
+            Log.e(TAG, "processFaceRecognition: Exception occurred", e);
             listener.onFailure(e);
             resetValidation();
         }
     }
 
     /**
-     * Convert ImageProxy to Bitmap
+     * Convert ImageProxy to Bitmap with improved error handling
      */
     @androidx.camera.core.ExperimentalGetImage
     private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
+        if (imageProxy == null) {
+            Log.e(TAG, "ImageProxy is null");
+            return null;
+        }
+
         try {
             Image image = imageProxy.getImage();
             if (image == null) {
+                Log.e(TAG, "Image from ImageProxy is null");
+                return null;
+            }
+
+            // Ensure image format is YUV_420_888
+            if (image.getFormat() != android.graphics.ImageFormat.YUV_420_888) {
+                Log.e(TAG, "Unexpected image format: " + image.getFormat());
                 return null;
             }
 
             // Convert YUV_420_888 to NV21
             byte[] nv21 = yuv420ToNv21(image);
+            if (nv21 == null) {
+                Log.e(TAG, "Failed to convert YUV to NV21");
+                return null;
+            }
 
             // Use YuvImage to decode NV21 to Bitmap
             android.graphics.YuvImage yuvImage = new android.graphics.YuvImage(
@@ -273,14 +293,24 @@ public class FaceAnalyzer implements ImageAnalysis.Analyzer {
             );
 
             java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-            yuvImage.compressToJpeg(
+            boolean success = yuvImage.compressToJpeg(
                 new android.graphics.Rect(0, 0, image.getWidth(), image.getHeight()),
                 100,
                 out
             );
 
+            if (!success) {
+                Log.e(TAG, "Failed to compress YuvImage to JPEG");
+                return null;
+            }
+
             byte[] imageBytes = out.toByteArray();
             Bitmap bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
+
+            if (bitmap == null) {
+                Log.e(TAG, "Failed to decode byte array to Bitmap");
+                return null;
+            }
 
             // Apply rotation if needed
             int rotation = imageProxy.getImageInfo().getRotationDegrees();
@@ -298,36 +328,48 @@ public class FaceAnalyzer implements ImageAnalysis.Analyzer {
     }
 
     /**
-     * Convert YUV_420_888 Image to NV21 byte array
+     * Convert YUV_420_888 Image to NV21 byte array with improved error handling
      */
     @androidx.camera.core.ExperimentalGetImage
     private byte[] yuv420ToNv21(Image image) {
-        Image.Plane[] planes = image.getPlanes();
-        Image.Plane yPlane = planes[0];
-        Image.Plane uPlane = planes[1];
-        Image.Plane vPlane = planes[2];
+        try {
+            Image.Plane[] planes = image.getPlanes();
+            if (planes.length != 3) {
+                Log.e(TAG, "Expected 3 planes for YUV_420_888, got: " + planes.length);
+                return null;
+            }
 
-        java.nio.ByteBuffer yBuffer = yPlane.getBuffer();
-        java.nio.ByteBuffer uBuffer = uPlane.getBuffer();
-        java.nio.ByteBuffer vBuffer = vPlane.getBuffer();
+            Image.Plane yPlane = planes[0];
+            Image.Plane uPlane = planes[1];
+            Image.Plane vPlane = planes[2];
 
-        int ySize = yBuffer.remaining();
-        int uSize = uBuffer.remaining();
-        int vSize = vBuffer.remaining();
+            java.nio.ByteBuffer yBuffer = yPlane.getBuffer();
+            java.nio.ByteBuffer uBuffer = uPlane.getBuffer();
+            java.nio.ByteBuffer vBuffer = vPlane.getBuffer();
 
-        byte[] nv21 = new byte[ySize + uSize + vSize];
+            int ySize = yBuffer.remaining();
+            int uSize = uBuffer.remaining();
+            int vSize = vBuffer.remaining();
 
-        // Y
-        yBuffer.get(nv21, 0, ySize);
+            byte[] nv21 = new byte[ySize + uSize + vSize];
 
-        // U and V are swapped for NV21
-        int position = ySize;
-        for (int i = 0; i < vSize; i++) {
-            nv21[position++] = vBuffer.get(i);
-            nv21[position++] = uBuffer.get(i);
+            // Copy Y plane
+            yBuffer.get(nv21, 0, ySize);
+
+            // Interleave V and U into VU (NV21 format)
+            int position = ySize;
+            for (int i = 0; i < vSize; i++) {
+                nv21[position++] = vBuffer.get(i);
+                if (i < uSize) {
+                    nv21[position++] = uBuffer.get(i);
+                }
+            }
+
+            return nv21;
+        } catch (Exception e) {
+            Log.e(TAG, "Error converting YUV_420_888 to NV21", e);
+            return null;
         }
-
-        return nv21;
     }
 
     /**
