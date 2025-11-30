@@ -45,9 +45,9 @@ public class LoginActivity extends AppCompatActivity {
     private FirebaseAuth firebaseAuth;
     private FirebaseFirestore firestore;
 
-    private TextView tvForgotPassword;
     private TextInputLayout titleEmail, titlePassword;
     private TextInputEditText editEmail, editPassword;
+    private TextView textView_forgot_password;
     private MaterialButton btnLogin;
 
     private GoogleSignInClient googleSignInClient;
@@ -79,12 +79,12 @@ public class LoginActivity extends AppCompatActivity {
         editEmail = findViewById(R.id.editText_email);
         editPassword = findViewById(R.id.editText_password);
         btnLogin = findViewById(R.id.button_login);
-        tvForgotPassword = findViewById(R.id.textView_forgot_password);
+        textView_forgot_password = findViewById(R.id.textView_forgot_password);
     }
 
     private void setupClickListener() {
         btnLogin.setOnClickListener(v -> handleLogin());
-        findViewById(R.id.textView_forgot_password).setOnClickListener(v -> handleForgotPassword());
+
         findViewById(R.id.btn_google_login).setOnClickListener(v -> signInWithGoogle());
 
         findViewById(R.id.btn_back_welcome).setOnClickListener(v -> {
@@ -95,9 +95,12 @@ public class LoginActivity extends AppCompatActivity {
             startActivity(new Intent(this, RegisterActivity.class));
         });
 
-        tvForgotPassword.setOnClickListener(view -> {
-            Intent intent = new Intent(LoginActivity.this, ForgotPassword.class);
-            startActivity(intent);
+        textView_forgot_password.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(LoginActivity.this, ForgotPassword.class);
+                startActivity(intent);
+            }
         });
     }
 
@@ -145,14 +148,6 @@ public class LoginActivity extends AppCompatActivity {
         return isValid;
     }
 
-    private void handleForgotPassword() {
-        String email = editEmail.getText().toString().trim();
-        if (!validateInput(email, "not_empty")) return;
-
-        firebaseAuth.sendPasswordResetEmail(email)
-                .addOnSuccessListener(unused -> Toast.makeText(this, "Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.", Toast.LENGTH_LONG).show())
-                .addOnFailureListener(e -> Toast.makeText(this, "Gửi email thất bại: " + e.getLocalizedMessage(), Toast.LENGTH_LONG).show());
-    }
 
     private void configureGoogleSignIn() {
         GoogleSignInOptions gso = new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)

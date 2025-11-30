@@ -1,6 +1,6 @@
 package com.example.timemaster.data.model;
 
-public final class StatusType {
+public final class  StatusType {
     public static final int PRESENT = 0;
     public static final int LATE = 1;
     public static final int ABSENT = 2;

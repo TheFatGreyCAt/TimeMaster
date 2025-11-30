@@ -4,6 +4,8 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Patterns;
+import android.view.View;
 import android.widget.ImageButton;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -24,6 +26,7 @@ import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthUserCollisionException;
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException;
 import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
@@ -33,7 +36,6 @@ public class RegisterActivity extends AppCompatActivity {
 
     // Key truyền email để LoginActivity prefill sau khi đăng ký
     public static final String EXTRA_PREFILL_EMAIL = "prefill_email";
-    private static final String TAG = "RegisterActivity";
 
     // Firebase
     private FirebaseAuth firebaseAuth;
@@ -43,10 +45,12 @@ public class RegisterActivity extends AppCompatActivity {
     private TextInputLayout title_email_regis;
     private TextInputLayout title_password_regis;
     private TextInputLayout title_confirm_password_regis;
+    private TextInputLayout title_username_regis;
 
     private TextInputEditText editText_email_regis;
     private TextInputEditText editText_password_regis;
     private TextInputEditText editText_confirm_password_regis;
+    private TextInputEditText editText_username_regis;
 
     // UI độ mạnh mật khẩu
     private TextView textView_strength_value;
@@ -69,9 +73,7 @@ public class RegisterActivity extends AppCompatActivity {
         firestore = FirebaseFirestore.getInstance();
 
         initView();
-
         setupPasswordStrength();
-
         setupClickListener();
     }
 
@@ -80,10 +82,12 @@ public class RegisterActivity extends AppCompatActivity {
         title_email_regis = findViewById(R.id.title_email_regis);
         title_password_regis = findViewById(R.id.title_password_regis);
         title_confirm_password_regis = findViewById(R.id.title_confirm_password_regis);
+        title_username_regis = findViewById(R.id.title_username_regis);
 
         editText_email_regis = findViewById(R.id.editText_email_regis);
         editText_password_regis = findViewById(R.id.editText_password_regis);
         editText_confirm_password_regis = findViewById(R.id.editText_confirm_password_regis);
+        editText_username_regis = findViewById(R.id.editText_username_regis);
 
         textView_strength_label = findViewById(R.id.textView_strength_label);
         textView_strength_value = findViewById(R.id.textView_strength_value);
@@ -95,37 +99,29 @@ public class RegisterActivity extends AppCompatActivity {
         tabRegister = findViewById(R.id.tab_register_regis);
 
         // Ẩn thanh độ mạnh khi chưa nhập
-        tab_strength.setVisibility(android.view.View.GONE);
-        textView_strength_value.setVisibility(android.view.View.GONE);
-        textView_strength_label.setVisibility(android.view.View.GONE);
+        tab_strength.setVisibility(View.GONE);
+        textView_strength_value.setVisibility(View.GONE);
+        textView_strength_label.setVisibility(View.GONE);
     }
 
     private void setupPasswordStrength() {
         // Lắng nghe mật khẩu để tính độ mạnh
         editText_password_regis.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-            }
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 updatePasswordStrength(s.toString());
                 validateConfirmPassword();
             }
-            @Override public void afterTextChanged(Editable s) {
-
-            }
+            @Override public void afterTextChanged(Editable s) {}
         });
 
         // Kiểm tra khi gõ ô xác nhận mật khẩu
         editText_confirm_password_regis.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {
-
-            }
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
                 validateConfirmPassword();
             }
-            @Override public void afterTextChanged(Editable s) {
-
-            }
+            @Override public void afterTextChanged(Editable s) {}
         });
     }
 
@@ -134,16 +130,16 @@ public class RegisterActivity extends AppCompatActivity {
 
         // Nếu chưa nhập → ẩn cụm strength
         if (p.isEmpty()) {
-            tab_strength.setVisibility(android.view.View.GONE);
-            textView_strength_value.setVisibility(android.view.View.GONE);
-            textView_strength_label.setVisibility(android.view.View.GONE);
+            tab_strength.setVisibility(View.GONE);
+            textView_strength_value.setVisibility(View.GONE);
+            textView_strength_label.setVisibility(View.GONE);
             return;
         }
 
         // Có nhập → hiển thị cụm strength
-        tab_strength.setVisibility(android.view.View.VISIBLE);
-        textView_strength_value.setVisibility(android.view.View.VISIBLE);
-        textView_strength_label.setVisibility(android.view.View.VISIBLE);
+        tab_strength.setVisibility(View.VISIBLE);
+        textView_strength_value.setVisibility(View.VISIBLE);
+        textView_strength_label.setVisibility(View.VISIBLE);
 
         int score = 0;
         if (p.length() >= 8) score += 25;
@@ -153,41 +149,35 @@ public class RegisterActivity extends AppCompatActivity {
         if (p.matches(".*[^A-Za-z0-9].*")) score += 15;
         score = Math.min(score, 100);
 
-        if (tab_strength != null) tab_strength.setProgress(score);
+        tab_strength.setProgress(score);
 
         String label;
         int color;
         if (score < 35) {
             label = "Yếu";
-            color = 0xFFE11D48; // đỏ
+            color = 0xFFE11D48; // Đỏ
         } else if (score < 70) {
             label = "Trung bình";
-            color = 0xFFF59E0B; // cam
+            color = 0xFFF59E0B; // Cam
         } else {
             label = "Mạnh";
-            color = 0xFF16A34A; // xanh
+            color = 0xFF16A34A; // Xanh lá
         }
-        if (textView_strength_value != null) {
-            textView_strength_value.setText(label);
-            textView_strength_value.setTextColor(color);
-        }
-        if (tab_strength != null) {
-            tab_strength.setProgressTintList(android.content.res.ColorStateList.valueOf(color));
-        }
+
+        textView_strength_value.setText(label);
+        textView_strength_value.setTextColor(color);
+        tab_strength.setProgressTintList(android.content.res.ColorStateList.valueOf(color));
     }
 
     private void validateConfirmPassword() {
-        if (editText_password_regis == null || editText_confirm_password_regis == null || title_confirm_password_regis == null) return;
         String password = editText_password_regis.getText().toString().trim();
         String confirmPassword = editText_confirm_password_regis.getText().toString().trim();
 
-        // Nếu chưa nhập gì, xóa error và return
         if (confirmPassword.isEmpty()) {
             title_confirm_password_regis.setError(null);
             return;
         }
 
-        // Kiểm tra khớp
         if (!confirmPassword.equals(password)) {
             title_confirm_password_regis.setError("Mật khẩu không khớp");
         } else {
@@ -202,14 +192,14 @@ public class RegisterActivity extends AppCompatActivity {
             overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right);
             finish();
         });
-        // Tab đăng ký đang active -> không xử lý
-        tabRegister.setOnClickListener(v -> {
 
-        });
+        // Tab Register đang active
+        tabRegister.setOnClickListener(v -> {});
 
         // Nút đăng ký
         button_register.setOnClickListener(v -> handleRegister());
 
+        // Nút Back
         btnBackMain.setOnClickListener(v -> {
             Intent intent = new Intent(this, CheckInActivity.class);
             intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -218,38 +208,42 @@ public class RegisterActivity extends AppCompatActivity {
         });
     }
 
-    // HÀM XỬ LÝ ĐĂNG KÝ
+    // --- LOGIC QUAN TRỌNG ĐỂ CẬP NHẬT TÊN ---
     private void handleRegister() {
-        // Lấy dữ liệu người dùng nhập
         String email = editText_email_regis.getText().toString().trim();
         String password = editText_password_regis.getText().toString().trim();
         String confirmPassword = editText_confirm_password_regis.getText().toString().trim();
+        String fullName = editText_username_regis.getText().toString().trim();
 
+        // 1. Validate Input
         boolean isValid = true;
+        if (fullName.isEmpty()) {
+            title_username_regis.setError("Vui lòng nhập họ và tên");
+            isValid = false;
+        } else {
+            title_username_regis.setError(null);
+        }
 
-        // Kiểm tra email
         if (email.isEmpty()) {
             title_email_regis.setError("Vui lòng nhập email");
             isValid = false;
-        } else if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        } else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
             title_email_regis.setError("Vui lòng nhập đúng định dạng email");
             isValid = false;
         } else {
             title_email_regis.setError(null);
         }
 
-        // Kiểm tra mật khẩu
         if (password.isEmpty()) {
             title_password_regis.setError("Vui lòng nhập mật khẩu");
             isValid = false;
         } else if (password.length() < 6) {
-            title_password_regis.setError("Mật khẩu phải có ít nhất 6 ký tự");
+            title_password_regis.setError("Mật khẩu tối thiểu 6 ký tự");
             isValid = false;
         } else {
             title_password_regis.setError(null);
         }
 
-        // Kiểm tra xác nhận mật khẩu
         if (confirmPassword.isEmpty()) {
             title_confirm_password_regis.setError("Vui lòng nhập lại mật khẩu");
             isValid = false;
@@ -260,77 +254,73 @@ public class RegisterActivity extends AppCompatActivity {
             title_confirm_password_regis.setError(null);
         }
 
-        if (!isValid) {
-            return; // dừng sớm nếu dữ liệu không hợp lệ
-        }
+        if (!isValid) return;
 
-        // Khoá nút chống click liên tục
-        button_register.setEnabled(false);
+        // 2. Tiến hành đăng ký
+        button_register.setEnabled(false); // Khoá nút để tránh click nhiều lần
 
-        // Firebase Auth - tạo tài khoản mới
         firebaseAuth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener(task -> {
-                    // Mở khoá nút khi có phản hồi
-                    if (button_register != null) button_register.setEnabled(true);
-
-                    // Nếu tạo tài khoản thất bại
                     if (!task.isSuccessful()) {
+                        button_register.setEnabled(true);
                         showFirebaseError(task.getException());
                         return;
                     }
 
-                    // Nếu đăng ký thành công, lấy thông tin vừa tạo
+                    // Đăng ký thành công -> Lấy user
                     FirebaseUser user = firebaseAuth.getCurrentUser();
-                    if (user == null) {
-                        Toast.makeText(this, "Đăng ký thất bại", Toast.LENGTH_SHORT).show();
-                        return;
+                    if (user != null) {
+                        String userEmail = user.getEmail();
+                        // Xác định role dựa trên domain email
+                        String role = (userEmail != null && userEmail.endsWith("@timemaster.com")) ? "admin" : "user";
+
+                        // --- QUAN TRỌNG: Cập nhật tên hiển thị NGAY LẬP TỨC ---
+                        UserProfileChangeRequest profileUpdates = new UserProfileChangeRequest.Builder()
+                                .setDisplayName(fullName)
+                                .build();
+
+                        // Chờ update profile xong mới lưu DB và chuyển màn hình
+                        user.updateProfile(profileUpdates).addOnCompleteListener(profileTask -> {
+                            // Dù update profile thành công hay lỗi nhẹ, vẫn tiếp tục lưu Firestore
+                            saveUserToFirestore(user.getUid(), userEmail, role, fullName);
+                        });
                     }
-
-                    String userEmail = user.getEmail();
-                    String role = "user"; // Mặc định là user
-
-                    // Nếu đuôi email là công ty thì là ADMIN
-                    if (userEmail != null && userEmail.endsWith("@timemaster.com")) {
-                        role = "admin";
-                    }
-
-                    // Lưu vào Firestore
-                    saveUserToFirestore(user.getUid(), userEmail, role);
                 });
     }
 
-    private void saveUserToFirestore(String userId, String email, String role) {
+    private void saveUserToFirestore(String userId, String email, String role, String fullName) {
         Map<String, Object> profile = new HashMap<>();
         profile.put("email", email);
         profile.put("role", role);
+        profile.put("fullName", fullName);
         profile.put("createdAt", Timestamp.now());
         profile.put("updatedAt", Timestamp.now());
-        
+
         firestore.collection("users")
                 .document(userId)
                 .set(profile)
                 .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Đăng ký thành công", Toast.LENGTH_SHORT).show();
-                    
+                    Toast.makeText(this, "Đăng ký thành công!", Toast.LENGTH_SHORT).show();
+
+                    // Đăng xuất để người dùng đăng nhập lại (theo luồng app của bạn)
+                    // Vì đã updateProfile ở trên, nên lần đăng nhập tới User sẽ có tên luôn.
                     FirebaseAuth.getInstance().signOut();
-                    
+
                     navigateToLogin(email);
                 })
                 .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Lỗi lưu dữ liệu" + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    button_register.setEnabled(true);
+                    Toast.makeText(this, "Lỗi lưu dữ liệu: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
     }
 
-    // Điều hướng về LoginActivity và prefill email
     private void navigateToLogin(String emailToPrefill) {
         Intent intent = new Intent(this, LoginActivity.class);
         if (emailToPrefill != null) {
             intent.putExtra(EXTRA_PREFILL_EMAIL, emailToPrefill);
         }
         startActivity(intent);
-        // Animation
         overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right);
-        // Đóng RegisterActivity để không quay lại bằng nút Back
         finish();
     }
 
@@ -339,13 +329,12 @@ public class RegisterActivity extends AppCompatActivity {
         if (e instanceof FirebaseAuthUserCollisionException) {
             msg = "Email đã được sử dụng";
         } else if (e instanceof FirebaseAuthWeakPasswordException) {
-            msg = "Mật khẩu quá yếu (tối thiểu 6 ký tự)";
+            msg = "Mật khẩu quá yếu";
         } else if (e instanceof FirebaseAuthInvalidCredentialsException) {
-            msg = "Thông tin không hợp lệ";
-        } else if (e != null && e.getLocalizedMessage() != null) {
-            msg = e.getLocalizedMessage();
+            msg = "Email không hợp lệ";
+        } else if (e != null && e.getMessage() != null) {
+            msg = e.getMessage();
         }
         Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
     }
-
 }

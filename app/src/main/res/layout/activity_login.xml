@@ -275,27 +275,6 @@
             app:layout_constraintTop_toBottomOf="@id/textView_hoac">
 
             <!-- Fingerprint -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/card_fingerprint"
-                android:layout_width="65dp"
-                android:layout_height="65dp"
-                app:cardCornerRadius="32dp"
-                app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="@color/card_stroke"
-                android:layout_marginEnd="20dp"
-                android:clickable="true"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackground">
-
-                <ImageView
-                    android:layout_width="35dp"
-                    android:layout_height="35dp"
-                    android:src="@drawable/ic_fingerprint"
-                    android:layout_gravity="center"
-                    app:tint="@color/text_primary"
-                    android:contentDescription="@string/cd_fingerprint_button" />
-            </com.google.android.material.card.MaterialCardView>
 
             <!-- Face Recognition -->
             <com.google.android.material.card.MaterialCardView

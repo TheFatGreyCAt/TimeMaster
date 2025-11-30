@@ -57,6 +57,19 @@
             android:name=".ui.dashboard.DashboardHostActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".AdminApprovalActivity"
+            android:exported="false"
+            android:label="Duyệt yêu cầu" />
+
+        <activity
+            android:name=".ui.dashboard.admin.EmployeeDetailActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".EditProfileActivity"
+            android:exported="false"
+            android:label="Chỉnh sửa hồ sơ" />
     </application>
 
 </manifest>

@@ -5,6 +5,11 @@ import com.example.timemaster.data.model.WeekAttendance;
 import java.util.List;
 
 public interface AttendanceRepository {
-    /** Lấy 4 tuần: tuần hiện tại + 3 tuần trước, mỗi tuần 7 ngày. */
-    List<WeekAttendance> getLast4Weeks();
+
+    interface Callback {
+        void onSuccess(List<WeekAttendance> weeks);
+        void onError(Exception e);
+    }
+
+    void getLast4Weeks(Callback callback);
 }

@@ -6,43 +6,24 @@
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F7F8FA">
+    android:background="#FCFCF9">
 
-    <!-- TabBar đầu trang -->
     <LinearLayout
         android:id="@+id/tabbar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:gravity="center_vertical"
-        android:background="#FFFFFF"
-        android:orientation="horizontal"
-        android:elevation="3dp"
+        android:gravity="center"
         android:paddingStart="8dp"
         android:paddingEnd="8dp">
-        <ImageView
-            android:id="@+id/btn_menu"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:padding="8dp"
-            android:src="@drawable/ic_menu"
-            android:contentDescription="Menu"/>
         <TextView
             android:id="@+id/title_dashboard"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:text="Dashboard"
-            android:textSize="20sp"
+            android:textSize="16sp"
             android:textColor="#232323"
             android:textStyle="bold"
-            android:gravity="center"/>
-        <ImageView
-            android:id="@+id/btn_bell"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:padding="8dp"
-            android:src="@drawable/ic_notification"
-            android:contentDescription="Notification"/>
+            android:gravity="center" />
     </LinearLayout>
 
     <!-- Nội dung cuộn toàn trang -->
@@ -79,14 +60,19 @@
                         android:orientation="vertical"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content">
+                        <!-- TÊN THẬT -->
                         <TextView
+                            android:id="@+id/tv_full_name"
                             android:text="Nguyen Van A"
                             android:textStyle="bold"
                             android:textSize="18sp"
                             android:textColor="#232323"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"/>
+
+                        <!-- USERNAME / EMAIL -->
                         <TextView
+                            android:id="@+id/tv_username"
                             android:text="nguyenvana"
                             android:textColor="#888"
                             android:layout_width="wrap_content"

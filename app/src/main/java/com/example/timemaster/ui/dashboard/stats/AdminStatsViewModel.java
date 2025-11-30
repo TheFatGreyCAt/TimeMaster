@@ -1,216 +1,280 @@
 package com.example.timemaster.ui.dashboard.stats;
 
-import androidx.annotation.NonNull;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
-import com.example.timemaster.data.repository.AttendanceRepository;
 import com.example.timemaster.data.model.DayAttendance;
 import com.example.timemaster.data.model.StatusType;
 import com.example.timemaster.data.model.UserAttendance;
 import com.example.timemaster.data.model.WeekAttendance;
+import com.example.timemaster.data.repository.AttendanceRepository;
+import com.example.timemaster.data.repository.AttendanceRepositoryFirestore;
 
 import java.text.Normalizer;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
-/**
- * ViewModel lưu toàn bộ state của màn Admin Stats:
- * - weeks (4 tuần gần nhất)
- * - currentWeek/currentDay/currentPage
- * - searchQuery + statusFilter
- * - pageSize (mặc định 5)
- */
 public class AdminStatsViewModel extends ViewModel {
 
-    // ==== Consts / format ====
-    private static final Locale VI = new Locale("vi", "VN");
-    private static final SimpleDateFormat DF = new SimpleDateFormat("dd/MM/yyyy", VI);
-    private static final Pattern DIACRITICS = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+    private final AttendanceRepository repository =
+            new AttendanceRepositoryFirestore();
 
-    // ==== Data source ====
-    private final AttendanceRepository repo;
+    private final MutableLiveData<List<WeekAttendance>> weeksLiveData =
+            new MutableLiveData<>();
+    private final MutableLiveData<Boolean> loading =
+            new MutableLiveData<>(false);
+    private final MutableLiveData<String> error =
+            new MutableLiveData<>(null);
 
-    // ==== State ====
-    private List<WeekAttendance> weeks = new ArrayList<>();
-    private int currentWeek = 0;   // 0: tuần hiện tại; 1..3: tuần trước
-    private int currentDay  = 0;   // 0..6: Thứ 2..CN
-    private int currentPage = 0;   // phân trang list theo ngày
-    private int pageSize    = 5;
-
-    private String searchQuery = "";
-    /** null = không lọc, nếu != null: lọc theo StatusType.PRESENT/LATE/ABSENT/EARLY_OUT */
-    private Integer statusFilter = null;
-
-    public AdminStatsViewModel(@NonNull AttendanceRepository repo) {
-        this.repo = repo;
-        loadWeeks();
+    public LiveData<List<WeekAttendance>> getWeeksLiveData() {
+        return weeksLiveData;
     }
 
-    public void loadWeeks() {
-        weeks = repo.getLast4Weeks();
-        currentWeek = 0;
-        currentDay = 0;
+    public LiveData<Boolean> getLoading() {
+        return loading;
+    }
+
+    public LiveData<String> getError() {
+        return error;
+    }
+
+    // trạng thái UI hiện tại
+    private int currentWeekIndex = 3; // 0..3 (3 = tuần hiện tại)
+    private int currentDayIndex = 0;  // 0..6 (Thứ 2..CN)
+    private int currentPage = 0;
+    private int pageSize = 5;
+
+    private String searchText = "";
+    private Integer filterStatusType = null; // null = ALL
+
+    private final SimpleDateFormat WEEK_DF =
+            new SimpleDateFormat("dd/MM/yyyy", new Locale("vi", "VN"));
+
+    // =========================
+    //  Load dữ liệu từ Firestore
+    // =========================
+    public void loadData() {
+        loading.postValue(true);
+        error.postValue(null);
+
+        repository.getLast4Weeks(new AttendanceRepository.Callback() {
+            @Override
+            public void onSuccess(List<WeekAttendance> weeks) {
+                loading.postValue(false);
+                if (weeks != null && !weeks.isEmpty()) {
+                    if (currentWeekIndex >= weeks.size()) {
+                        currentWeekIndex = weeks.size() - 1;
+                    }
+                    if (currentWeekIndex < 0) currentWeekIndex = 0;
+                }
+                weeksLiveData.postValue(weeks);
+            }
+
+            @Override
+            public void onError(Exception e) {
+                loading.postValue(false);
+                error.postValue(e.getMessage());
+            }
+        });
+    }
+
+    // ================
+    //  Bộ lọc & phân trang
+    // ================
+
+    public void setCurrentWeekIndex(int index) {
+        List<WeekAttendance> weeks = weeksLiveData.getValue();
+        if (weeks == null || weeks.isEmpty()) {
+            currentWeekIndex = 0;
+        } else {
+            if (index < 0) index = 0;
+            if (index >= weeks.size()) index = weeks.size() - 1;
+            currentWeekIndex = index;
+        }
         currentPage = 0;
     }
 
-    // ===== Navigate week =====
-    public boolean canGoPrevWeek() { return currentWeek < weeks.size() - 1; }
-    public boolean canGoNextWeek() { return currentWeek > 0; }
-
-    public void goPrevWeek() {
-        if (canGoPrevWeek()) {
-            currentWeek++;
-            resetDayAndPage();
-        }
+    public int getCurrentWeekIndex() {
+        return currentWeekIndex;
     }
 
-    public void goNextWeek() {
-        if (canGoNextWeek()) {
-            currentWeek--;
-            resetDayAndPage();
-        }
-    }
-
-    private void resetDayAndPage() {
-        currentDay = 0;
+    public void setCurrentDayIndex(int index) {
+        currentDayIndex = index;
         currentPage = 0;
-        // giữ nguyên search/statusFilter
     }
 
-    // ===== Day / Page =====
-    public DayAttendance getCurrentDay() { return weeks.get(currentWeek).days.get(currentDay); }
-
-    /** Danh sách sau khi áp dụng search + statusFilter */
-    public List<UserAttendance> getFilteredListForCurrentDay() {
-        List<UserAttendance> src = getCurrentDay().attendances != null ? getCurrentDay().attendances : new ArrayList<>();
-        if ((searchQuery == null || searchQuery.isEmpty()) && statusFilter == null) {
-            return src;
-        }
-        String q = normalizeVN(searchQuery);
-        List<UserAttendance> out = new ArrayList<>();
-        for (UserAttendance u : src) {
-            if (u == null) continue;
-            boolean okByName = (q.isEmpty()) || normalizeVN(u.getName()).contains(q);
-            boolean okByStatus = (statusFilter == null) || u.getStatusType() == statusFilter;
-            if (okByName && okByStatus) out.add(u);
-        }
-        return out;
+    public int getCurrentDayIndex() {
+        return currentDayIndex;
     }
 
-    public int getTotalPagesForCurrentDay() {
-        List<UserAttendance> list = getFilteredListForCurrentDay();
-        if (list.isEmpty()) return 0;
-        return (list.size() + pageSize - 1) / pageSize;
+    public void setPageSize(int size) {
+        if (size <= 0) size = 1;
+        this.pageSize = size;
+        currentPage = 0;
     }
 
-    public List<UserAttendance> getCurrentPageItems() {
-        List<UserAttendance> list = getFilteredListForCurrentDay();
-        if (list.isEmpty()) return list;
-        int total = getTotalPagesForCurrentDay();
-        if (currentPage > total - 1) currentPage = Math.max(0, total - 1);
-        int from = currentPage * pageSize;
-        int to = Math.min(from + pageSize, list.size());
-        return list.subList(from, to);
+    public int getPageSize() {
+        return pageSize;
+    }
+
+    public void setSearchText(String text) {
+        searchText = normalize(text);
+        currentPage = 0;
+    }
+
+    public void setFilterStatusType(Integer statusType) {
+        filterStatusType = statusType;
+        currentPage = 0;
+    }
+
+    public Integer getFilterStatusType() {
+        return filterStatusType;
     }
 
     public void nextPage() {
-        int total = getTotalPagesForCurrentDay();
-        if (currentPage < total - 1) currentPage++;
+        currentPage++;
     }
 
     public void prevPage() {
         if (currentPage > 0) currentPage--;
     }
 
-    // ===== Counters / Charts for week =====
-    public int[] getWeeklyCounts() {
-        // [present, late, absent] (3 ô đếm)
-        int present = 0, late = 0, absent = 0;
-        WeekAttendance w = weeks.get(currentWeek);
-        for (DayAttendance d : w.days) {
-            if (d.attendances == null) continue;
-            for (UserAttendance u : d.attendances) {
-                if (u == null) continue;
-                switch (u.getStatusType()) {
-                    case StatusType.PRESENT: present++; break;
-                    case StatusType.LATE:    late++;    break;
-                    case StatusType.ABSENT:  absent++;  break;
-                    default: /* EARLY_OUT */ break;     // không đếm trong 3 ô
-                }
-            }
-        }
-        return new int[]{present, late, absent};
+    public int getCurrentPage() {
+        return currentPage;
     }
 
-    public int[] getWeeklyChartCounts() {
-        // [present, late, early, absent] cho PieChart
+    // =========================
+    //  LABEL tuần: "dd/MM/yyyy - dd/MM/yyyy"
+    // =========================
+    public String getWeekLabel() {
+        List<WeekAttendance> weeks = weeksLiveData.getValue();
+        if (weeks == null || weeks.isEmpty()) return "";
+        if (currentWeekIndex < 0 || currentWeekIndex >= weeks.size()) return "";
+
+        WeekAttendance week = weeks.get(currentWeekIndex);
+        if (week.getDays() == null || week.getDays().isEmpty()) return "";
+
+        DayAttendance first = week.getDays().get(0);
+        DayAttendance last = week.getDays().get(week.getDays().size() - 1);
+        if (first.getDate() == null || last.getDate() == null) return "";
+
+        return WEEK_DF.format(first.getDate()) + " - " + WEEK_DF.format(last.getDate());
+    }
+
+    // =========================
+    //  COUNTS theo tuần / theo ngày
+    // =========================
+
+    /** Đếm toàn bộ tuần hiện tại (không áp dụng search/filter)
+     *  return [present, late, earlyOut, absent]
+     */
+    public int[] getWeeklyCounts() {
         int present = 0, late = 0, early = 0, absent = 0;
-        WeekAttendance w = weeks.get(currentWeek);
-        for (DayAttendance d : w.days) {
-            if (d.attendances == null) continue;
-            for (UserAttendance u : d.attendances) {
-                if (u == null) continue;
-                switch (u.getStatusType()) {
-                    case StatusType.PRESENT:   present++; break;
-                    case StatusType.LATE:      late++;    break;
-                    case StatusType.EARLY_OUT: early++;   break;
-                    case StatusType.ABSENT:    absent++;  break;
-                }
+
+        List<WeekAttendance> weeks = weeksLiveData.getValue();
+        if (weeks == null || weeks.isEmpty()) return new int[]{0, 0, 0, 0};
+        if (currentWeekIndex < 0 || currentWeekIndex >= weeks.size())
+            return new int[]{0, 0, 0, 0};
+
+        WeekAttendance week = weeks.get(currentWeekIndex);
+        if (week.getDays() == null) return new int[]{0, 0, 0, 0};
+
+        for (DayAttendance day : week.getDays()) {
+            if (day.getAttendances() == null) continue;
+            for (UserAttendance ua : day.getAttendances()) {
+                int st = ua.getStatusType();
+                if (st == StatusType.PRESENT) present++;
+                else if (st == StatusType.LATE) late++;
+                else if (st == StatusType.EARLY_OUT) early++;
+                else if (st == StatusType.ABSENT) absent++;
             }
         }
         return new int[]{present, late, early, absent};
     }
 
-    public String getWeekLabel() {
-        WeekAttendance w = weeks.get(currentWeek);
-        return DF.format(w.days.get(0).date) + " - " + DF.format(w.days.get(6).date);
-    }
+    /** Đếm trong NGÀY hiện tại (có áp dụng search + filter)
+     *  return [present, late, absent, earlyOut]
+     */
+    public int[] getCurrentCounts() {
+        List<UserAttendance> list = getCurrentDayAllFiltered();
+        int present = 0, late = 0, absent = 0, early = 0;
 
-    // ===== Search / Filter =====
-    public void setSearchQuery(String q) {
-        searchQuery = (q == null) ? "" : q.trim();
-        currentPage = 0;
-    }
-
-    public String getSearchQuery() { return searchQuery; }
-
-    /** Toggle filter theo status: nếu đang filter cùng loại -> bỏ lọc */
-    public void toggleStatusFilter(int statusType) {
-        if (statusFilter != null && statusFilter == statusType) {
-            statusFilter = null;  // bỏ lọc
-        } else {
-            statusFilter = statusType;
+        for (UserAttendance ua : list) {
+            int st = ua.getStatusType();
+            if (st == StatusType.PRESENT) present++;
+            else if (st == StatusType.LATE) late++;
+            else if (st == StatusType.ABSENT) absent++;
+            else if (st == StatusType.EARLY_OUT) early++;
         }
-        currentPage = 0;
+        return new int[]{present, late, absent, early};
     }
 
-    public Integer getStatusFilter() { return statusFilter; }
+    // =========================
+    //  Data cho bảng theo ngày
+    // =========================
 
-    // ===== Helpers =====
-    private static String normalizeVN(String s) {
+    public List<UserAttendance> getCurrentPageData() {
+        List<UserAttendance> filtered = getCurrentDayAllFiltered();
+        if (filtered.isEmpty()) return new ArrayList<>();
+
+        int from = currentPage * pageSize;
+        if (from >= filtered.size()) return new ArrayList<>();
+        int to = Math.min(from + pageSize, filtered.size());
+        return filtered.subList(from, to);
+    }
+
+    public int getTotalPagesForCurrentDay() {
+        List<UserAttendance> filtered = getCurrentDayAllFiltered();
+        if (filtered.isEmpty()) return 0;
+        return (filtered.size() + pageSize - 1) / pageSize;
+    }
+
+    // =========================
+    //  Helpers nội bộ
+    // =========================
+
+    private List<UserAttendance> getCurrentDayAllFiltered() {
+        List<WeekAttendance> weeks = weeksLiveData.getValue();
+        List<UserAttendance> result = new ArrayList<>();
+        if (weeks == null || weeks.isEmpty()) return result;
+
+        if (currentWeekIndex < 0 ||
+                currentWeekIndex >= weeks.size()) return result;
+        WeekAttendance week = weeks.get(currentWeekIndex);
+
+        if (week.getDays() == null ||
+                currentDayIndex < 0 ||
+                currentDayIndex >= week.getDays().size()) return result;
+        DayAttendance day = week.getDays().get(currentDayIndex);
+
+        if (day.getAttendances() == null) return result;
+
+        for (UserAttendance ua : day.getAttendances()) {
+            if (!matchSearch(ua)) continue;
+            if (!matchStatus(ua)) continue;
+            result.add(ua);
+        }
+        return result;
+    }
+
+    private boolean matchSearch(UserAttendance ua) {
+        if (searchText == null || searchText.isEmpty()) return true;
+        String name = normalize(ua.getName());
+        return name.contains(searchText);
+    }
+
+    private boolean matchStatus(UserAttendance ua) {
+        if (filterStatusType == null) return true;
+        return ua.getStatusType() == filterStatusType;
+    }
+
+    private String normalize(String s) {
         if (s == null) return "";
-        String temp = Normalizer.normalize(s, Normalizer.Form.NFD);
-        temp = DIACRITICS.matcher(temp).replaceAll("");
-        temp = temp.replace('đ', 'd').replace('Đ', 'D');
-        return temp.toLowerCase(Locale.ROOT).trim();
-    }
-
-    // ===== Expose for Fragment =====
-    public int getCurrentWeekIndex() { return currentWeek; }
-    public int getWeeksCount() { return weeks.size(); }
-    public int getCurrentDayIndex() { return currentDay; }
-    public void setCurrentDayIndex(int index0to6) {
-        if (index0to6 < 0 || index0to6 > 6) return;
-        currentDay = index0to6;
-        currentPage = 0;
-    }
-    public int getCurrentPage() { return currentPage; }
-    public int getPageSize() { return pageSize; }
-    public void setPageSize(int pageSize) {
-        if (pageSize > 0) this.pageSize = pageSize;
-        currentPage = 0;
+        String n = Normalizer.normalize(s, Normalizer.Form.NFD);
+        n = n.replaceAll("\\p{M}", "");
+        return n.toLowerCase(Locale.ROOT);
     }
 }
