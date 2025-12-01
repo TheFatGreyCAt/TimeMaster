@@ -143,7 +143,8 @@ public class UserStatusFragment extends Fragment {
     }
 
     private void fetchAttendanceRecords(String userId, String date, String fullName) {
-        db.collection("attendanceRecords")
+        // Assign listener để có thể remove trong onDestroyView
+        attendanceListener = db.collection("attendanceRecords")
                 .whereEqualTo("uid", userId)
                 .whereEqualTo("date", date)
                 .addSnapshotListener((querySnapshot, error) -> {

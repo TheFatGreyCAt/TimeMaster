@@ -5,6 +5,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
+// Đại diện cho lần chấm công duy nhất của người dùng trong một ngày
+// Tự động xác thực trạng thái chấm công dựa trên thời gian vào / ra.
+
 public class CheckIn {
     private String id;
     private String userId;
