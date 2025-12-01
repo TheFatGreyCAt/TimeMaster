@@ -1,7 +1,6 @@
 package com.example.timemaster.ui.dashboard.user;
 
 import android.annotation.SuppressLint;
-import android.graphics.Color;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -16,16 +15,19 @@ import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 
 import com.example.timemaster.R;
+import com.example.timemaster.data.model.StatusType;
+import com.example.timemaster.data.model.UserAttendance;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
-import com.google.firebase.firestore.Query;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 
 public class UserStatusFragment extends Fragment {
@@ -41,10 +43,7 @@ public class UserStatusFragment extends Fragment {
     private FirebaseUser currentUser;
     private ListenerRegistration attendanceListener;
 
-
     // Cấu hình giờ làm việc (Bạn có thể đưa cái này vào Setting sau này)
-    private static final int START_HOUR = 8; // 8 giờ sáng là mốc đúng giờ
-    private static final int START_MINUTE = 0;
     private static final int END_WORK_HOUR = 17; // 17h chiều là mốc xác định Vắng
 
     @Nullable
@@ -57,7 +56,12 @@ public class UserStatusFragment extends Fragment {
 
         initViews(view);
         setupHeaderData();
-        fetchAttendanceStatus();
+
+        // Fetch attendance data cho ngày hôm nay
+        if (currentUser != null) {
+            String todayDate = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+            fetchAttendanceData(currentUser.getUid(), todayDate);
+        }
 
         return view;
     }
@@ -117,39 +121,147 @@ public class UserStatusFragment extends Fragment {
         }
     }
 
-    private void fetchAttendanceStatus() {
-        if (currentUser == null) return;
+    // Fetch dữ liệu từ Firebase
+    private void fetchAttendanceData(String userId, String date) {
+        // Lấy fullName từ users collection trước
+        db.collection("users")
+                .document(userId)
+                .get()
+                .addOnSuccessListener(userDoc -> {
+                    String fullName = userDoc.exists() ? userDoc.getString("fullName") : "User";
+                    if (fullName == null || fullName.isEmpty()) {
+                        fullName = "User";
+                    }
 
-        // Lấy ngày hôm nay (dạng yyyy-MM-dd để query theo format mới)
-        String todayStr = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new Date());
+                    // Sau đó fetch attendance records
+                    fetchAttendanceRecords(userId, date, fullName);
+                })
+                .addOnFailureListener(e -> {
+                    // Nếu lỗi, vẫn fetch attendance với tên mặc định
+                    fetchAttendanceRecords(userId, date, "User");
+                });
+    }
 
-        if (attendanceListener != null) {
-            attendanceListener.remove();
-        }
-
-        // Truy vấn tất cả bản ghi điểm danh trong ngày hôm nay
-        attendanceListener = db.collection("attendanceRecords")
-                .whereEqualTo("uid", currentUser.getUid())
-                .whereEqualTo("date", todayStr)
-                .orderBy("timestamp", Query.Direction.DESCENDING) // Sắp xếp theo thời gian mới nhất
-                .addSnapshotListener((snapshots, error) -> {
-                    // Kiểm tra Fragment vẫn còn attached trước khi xử lý
-                    if (!isAdded() || getContext() == null) return;
-
+    private void fetchAttendanceRecords(String userId, String date, String fullName) {
+        db.collection("attendanceRecords")
+                .whereEqualTo("uid", userId)
+                .whereEqualTo("date", date)
+                .addSnapshotListener((querySnapshot, error) -> {
                     if (error != null) {
-                        Toast.makeText(requireContext(), "Lỗi lấy dữ liệu điểm danh", Toast.LENGTH_SHORT).show();
+                        // Kiểm tra context trước khi hiển thị Toast
+                        if (getContext() != null) {
+                            Toast.makeText(getContext(), "Lỗi khi tải dữ liệu: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                        updateUINoData();
                         return;
                     }
 
-                    if (snapshots != null && !snapshots.isEmpty()) {
-                        // ĐÃ CÓ DỮ LIỆU ĐIỂM DANH
-                        processAttendanceData(snapshots.getDocuments());
-                    } else {
-                        // CHƯA CÓ DỮ LIỆU
-                        processNoAttendanceData();
+                    if (querySnapshot == null || querySnapshot.isEmpty()) {
+                        updateUINoData();
+                        return;
                     }
+
+                    List<UserAttendance.AttendanceRecord> records = new ArrayList<>();
+                    for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
+                        String checkType = doc.getString("checkType");
+                        Long timestamp = doc.getLong("timestamp");
+                        String dateStr = doc.getString("date");
+                        String uid = doc.getString("uid");
+
+                        if (timestamp != null && checkType != null) {
+                            records.add(new UserAttendance.AttendanceRecord(
+                                    checkType, timestamp, dateStr, uid
+                            ));
+                        }
+                    }
+
+                    UserAttendance attendance = new UserAttendance(userId, fullName, records);
+                    updateUI(attendance);
                 });
     }
+
+    @SuppressLint("SetTextI18n")
+    private void updateUI(UserAttendance attendance) {
+        // Hiển thị thời gian check-in và check-out
+        tvCheckInTime.setText(attendance.getCheckInTime());
+        tvCheckOutTime.setText(attendance.getCheckOutTime());
+
+        // Hiển thị tổng thời gian làm việc
+        tvTotalHours.setText(attendance.getFormattedWorkingTime());
+
+        // Cập nhật progress bar (giả sử 8 giờ = 100%)
+        long totalMinutes = attendance.getTotalWorkingMinutes();
+        int progress = Math.min(100, (int) ((totalMinutes * 100) / (8 * 60)));
+        progressBar.setProgress(progress);
+
+        // Cập nhật trạng thái
+        updateStatusIndicator(attendance.getStatusType());
+    }
+
+    @SuppressLint("SetTextI18n")
+    private void updateUINoData() {
+        // Reset text giờ
+        tvCheckInTime.setText("--:--");
+        tvCheckOutTime.setText("--:--");
+        tvTotalHours.setText("00:00");
+        progressBar.setProgress(0);
+
+        // Kiểm tra giờ hiện tại để quyết định VẮNG hay CHƯA ĐIỂM DANH
+        Calendar now = Calendar.getInstance();
+        int currentHour = now.get(Calendar.HOUR_OF_DAY);
+
+        if (currentHour >= END_WORK_HOUR) {
+            // Đã hết ngày làm việc mà chưa có dữ liệu -> VẮNG
+            updateStatusIndicator(StatusType.ABSENT);
+        } else {
+            // Chưa hết ngày -> CHƯA ĐIỂM DANH
+            updateStatusIndicator(StatusType.NOT_CHECKED);
+        }
+    }
+
+    private void updateStatusIndicator(int statusType) {
+        String statusText = StatusType.toText(statusType);
+        int colorRes = StatusType.toColor(statusType);
+
+        tvStatus.setText(statusText);
+        tvStatus.setTextColor(colorRes);
+
+        // Đổi màu và icon
+        ivCheckmark.setColorFilter(colorRes);
+
+        // Chọn icon và background dựa trên status
+        int iconRes;
+        int bgDrawableRes;
+
+        switch (statusType) {
+            case StatusType.PRESENT:
+                iconRes = R.drawable.ic_check;
+                bgDrawableRes = R.drawable.circle_green_light_bg;
+                break;
+
+            case StatusType.LATE:
+            case StatusType.EARLY_OUT:
+            case StatusType.LATE_AND_EARLY_OUT:
+                iconRes = R.drawable.ic_check;
+                bgDrawableRes = R.drawable.circle_yellow_light_bg;
+                break;
+
+            case StatusType.ABSENT:
+                iconRes = R.drawable.ic_close;
+                bgDrawableRes = R.drawable.circle_red_light_bg;
+                break;
+
+            case StatusType.NOT_CHECKED:
+            default:
+                iconRes = R.drawable.ic_time;
+                bgDrawableRes = R.drawable.circle_gray_light_bg;
+                break;
+        }
+
+        ivCheckmark.setImageResource(iconRes);
+        ivCheckmark.setBackgroundResource(bgDrawableRes);
+    }
+
 
     @Override
     public void onDestroyView() {
@@ -159,170 +271,5 @@ public class UserStatusFragment extends Fragment {
             attendanceListener.remove();
             attendanceListener = null;
         }
-    }
-
-
-    @SuppressLint("SetTextI18n")
-    private void processAttendanceData(java.util.List<DocumentSnapshot> docs) {
-        // Tìm record CHECK_IN và CHECK_OUT mới nhất
-        Long latestCheckInMillis = null;
-        Long latestCheckOutMillis = null;
-
-        for (DocumentSnapshot doc : docs) {
-            String checkType = doc.getString("checkType");
-            Long timestampMillis = doc.getLong("timestamp");
-
-            if (timestampMillis == null) continue;
-
-            if ("CHECK_IN".equals(checkType)) {
-                if (latestCheckInMillis == null || timestampMillis > latestCheckInMillis) {
-                    latestCheckInMillis = timestampMillis;
-                }
-            } else if ("CHECK_OUT".equals(checkType)) {
-                if (latestCheckOutMillis == null || timestampMillis > latestCheckOutMillis) {
-                    latestCheckOutMillis = timestampMillis;
-                }
-            }
-        }
-
-        // 1. Hiển thị giờ Check-in
-        if (latestCheckInMillis != null) {
-            Date checkInDate = new Date(latestCheckInMillis);
-            String timeStr = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(checkInDate);
-            tvCheckInTime.setText(timeStr);
-
-            // --- KIỂM TRA ĐÚNG GIỜ / MUỘN / VẮNG ---
-            Calendar calCheckIn = Calendar.getInstance();
-            calCheckIn.setTime(checkInDate);
-
-            int checkInHour = calCheckIn.get(Calendar.HOUR_OF_DAY);
-
-            // Nếu điểm danh sau 17h -> VẮNG
-            if (checkInHour >= END_WORK_HOUR) {
-                setUIState(StatusState.ABSENT);
-            } else {
-                // Tạo mốc thời gian quy định (8:00 sáng hôm nay)
-                Calendar calDeadline = Calendar.getInstance();
-                calDeadline.setTime(checkInDate);
-                calDeadline.set(Calendar.HOUR_OF_DAY, START_HOUR);
-                calDeadline.set(Calendar.MINUTE, START_MINUTE);
-                calDeadline.set(Calendar.SECOND, 0);
-
-                if (calCheckIn.before(calDeadline) || calCheckIn.equals(calDeadline)) {
-                    // -> ĐÚNG GIỜ (XANH LÁ)
-                    setUIState(StatusState.ON_TIME);
-                } else {
-                    // -> ĐI MUỘN (VÀNG)
-                    setUIState(StatusState.LATE);
-                }
-            }
-        } else {
-            tvCheckInTime.setText("--:--");
-            setUIState(StatusState.NOT_CHECKED_IN);
-        }
-
-        // 2. Hiển thị giờ Check-out
-        if (latestCheckOutMillis != null) {
-            Date checkOutDate = new Date(latestCheckOutMillis);
-            String timeOutStr = new SimpleDateFormat("HH:mm", Locale.getDefault()).format(checkOutDate);
-            tvCheckOutTime.setText(timeOutStr);
-
-            // 3. Tính tổng giờ làm (checkout - checkin)
-            if (latestCheckInMillis != null) {
-                long diffMillis = latestCheckOutMillis - latestCheckInMillis;
-                long hours = diffMillis / (1000 * 60 * 60);
-                long minutes = (diffMillis % (1000 * 60 * 60)) / (1000 * 60);
-
-                tvTotalHours.setText(hours + " giờ " + minutes + " phút");
-
-                // Cập nhật progress bar (giả sử 8 giờ = 100%)
-                int totalMinutes = (int) (hours * 60 + minutes);
-                int progress = Math.min(100, (totalMinutes * 100) / (8 * 60));
-                progressBar.setProgress(progress);
-            } else {
-                tvTotalHours.setText("0 giờ 0 phút");
-                progressBar.setProgress(0);
-            }
-        } else {
-            tvCheckOutTime.setText("--:--");
-            tvTotalHours.setText("0 giờ 0 phút");
-            progressBar.setProgress(0);
-        }
-    }
-
-    private void processNoAttendanceData() {
-        // Reset text giờ
-        tvCheckInTime.setText("--:--");
-        tvCheckOutTime.setText("--:--");
-
-        // Kiểm tra giờ hiện tại để quyết định VẮNG hay CHƯA ĐIỂM DANH
-        Calendar now = Calendar.getInstance();
-        int currentHour = now.get(Calendar.HOUR_OF_DAY);
-
-        if (currentHour >= END_WORK_HOUR) {
-            // Đã hết ngày làm việc mà chưa có dữ liệu -> VẮNG (ĐỎ)
-            setUIState(StatusState.ABSENT);
-        } else {
-            // Chưa hết ngày -> CHƯA ĐIỂM DANH (XÁM)
-            setUIState(StatusState.NOT_CHECKED_IN);
-        }
-    }
-
-    // Enum cho các trạng thái để dễ quản lý
-    private enum StatusState {
-        NOT_CHECKED_IN, // Xám
-        ON_TIME,        // Xanh lá
-        LATE,           // Vàng
-        ABSENT          // Đỏ
-    }
-
-    @SuppressLint("SetTextI18n")
-    private void setUIState(StatusState state) {
-        int colorRes;
-        int bgDrawableRes;
-        String statusText;
-        int iconRes;
-
-        switch (state) {
-            case ON_TIME:
-                colorRes = Color.parseColor("#059669"); // Xanh lá đậm
-                bgDrawableRes = R.drawable.circle_green_light_bg;
-                statusText = "Đúng giờ";
-                iconRes = R.drawable.ic_check;
-                break;
-
-            case LATE:
-                colorRes = Color.parseColor("#D97706"); // Vàng cam
-                bgDrawableRes = R.drawable.circle_yellow_light_bg;
-                statusText = "Đi muộn";
-                iconRes = R.drawable.ic_check;
-                break;
-
-            case ABSENT:
-                colorRes = Color.parseColor("#DC2626"); // Đỏ
-                bgDrawableRes = R.drawable.circle_red_light_bg;
-                statusText = "Vắng mặt";
-                iconRes = R.drawable.ic_close;
-                break;
-
-            case NOT_CHECKED_IN:
-            default:
-                colorRes = Color.parseColor("#6B7280"); // Xám
-                bgDrawableRes = R.drawable.circle_gray_light_bg;
-                statusText = "Chưa điểm danh";
-                iconRes = R.drawable.ic_time;
-                break;
-        }
-
-        // Cập nhật UI
-        tvStatus.setText(statusText);
-        tvStatus.setTextColor(colorRes);
-
-        // Đổi màu icon
-        ivCheckmark.setImageResource(iconRes);
-        ivCheckmark.setColorFilter(colorRes);
-
-        // Đổi màu nền của icon
-        ivCheckmark.setBackgroundResource(bgDrawableRes);
     }
 }

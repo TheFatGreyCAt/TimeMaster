@@ -53,14 +53,14 @@ service cloud.firestore {
     //  Collection: attendanceRecords
     // ========================
     match /attendanceRecords/{recordId} {
-      // Users can read their own records, admins can read all
-      allow read: if isSignedIn() && (isAdmin() || resource.data.uid == currentUid());
+      // Allow anyone to read (needed for face recognition without login)
+      // Face recognition needs to check last record to determine CHECK_IN/CHECK_OUT
+      allow read: if true;
 
       // Allow create without authentication (for face recognition attendance)
-      // Validate that uid in data matches a valid user
       allow create: if true;
 
-      // Only the owner or admin can update/delete
+      // Only authenticated owner or admin can update/delete
       allow update, delete: if isSignedIn() && (isAdmin() || resource.data.uid == currentUid());
     }
 
@@ -74,6 +74,7 @@ service cloud.firestore {
       // Only the creator or admin can read/update/delete
       allow read, update, delete: if isSignedIn() && (isAdmin() || resource.data.userId == currentUid());
     }
+
 
     // ========================
     //  Legacy Collections (Restricted)
