@@ -77,6 +77,10 @@
             android:name=".EditProfileActivity"
             android:exported="false"
             android:label="Chỉnh sửa hồ sơ" />
+        <activity
+            android:name=".AuditLogActivity"
+            android:exported="false"
+            android:label="Nhật ký hoạt động" />
     </application>
 
 </manifest>

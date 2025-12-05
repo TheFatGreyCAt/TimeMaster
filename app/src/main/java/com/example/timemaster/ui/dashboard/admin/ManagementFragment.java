@@ -17,6 +17,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.timemaster.AdminApprovalActivity;
+import com.example.timemaster.AuditLogActivity; // Import Activity Nhật ký mới
 import com.example.timemaster.R;
 import com.example.timemaster.data.model.Employee;
 import com.google.firebase.firestore.DocumentSnapshot;
@@ -33,8 +34,13 @@ public class ManagementFragment extends Fragment {
     private EditText etSearch;
     private FirebaseFirestore db;
 
-    // Khai báo biến cái chuông
-    private ImageView ivNotification;
+    private ImageView ivNotification; // Cái chuông
+    private View viewBadge;           // Chấm đỏ thông báo
+
+    // Thêm nút xem nhật ký (bạn có thể thêm 1 icon vào layout xml hoặc dùng tạm icon có sẵn)
+    // Ở đây tôi giả sử bạn thêm 1 ImageView id là iv_history vào toolbar trong XML
+    // Nếu chưa có, bạn hãy thêm vào frag_admin_manage.xml cạnh cái chuông
+    private ImageView ivHistory;
 
     @Nullable
     @Override
@@ -43,8 +49,9 @@ public class ManagementFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         initViews(view);
-        setupDataFromFirebase();
+        setupDataFromFirebase(); // Hàm này sẽ tự động cập nhật SĐT/Email khi DB thay đổi
         setupEvents();
+        setupNotificationBadge(); // Lắng nghe chấm đỏ
 
         return view;
     }
@@ -52,14 +59,19 @@ public class ManagementFragment extends Fragment {
     private void initViews(View view) {
         etSearch = view.findViewById(R.id.et_search);
         rcvEmployees = view.findViewById(R.id.recycler_view_employees);
-
-        // --- 1. Ánh xạ cái chuông từ XML cũ của bạn ---
         ivNotification = view.findViewById(R.id.iv_notification);
+        viewBadge = view.findViewById(R.id.view_badge);
+
+        // Bạn cần thêm ImageView id="@+id/iv_history" vào file frag_admin_manage.xml
+        // cạnh cái chuông để làm nút xem nhật ký.
+        // Nếu không muốn sửa XML, có thể tạm bỏ qua dòng này.
+        ivHistory = view.findViewById(R.id.iv_history);
 
         rcvEmployees.setLayoutManager(new LinearLayoutManager(getContext()));
         mListEmployee = new ArrayList<>();
 
         employeeAdapter = new EmployeeAdapter(getContext(), mListEmployee, (employee, position) -> {
+            // Khi click vào nhân viên, truyền object Employee (đã có SĐT/Email) sang Detail
             Intent intent = new Intent(getContext(), EmployeeDetailActivity.class);
             intent.putExtra("employee_data", employee);
             startActivity(intent);
@@ -68,6 +80,7 @@ public class ManagementFragment extends Fragment {
     }
 
     private void setupDataFromFirebase() {
+        // Lắng nghe Realtime -> Khi User/Admin update Info, App tự cập nhật List này
         db.collection("users").addSnapshotListener((value, error) -> {
             if (error != null) return;
             if (value != null) {
@@ -80,13 +93,20 @@ public class ManagementFragment extends Fragment {
                     if (name == null) name = doc.getString("displayName");
                     emp.setName(name != null ? name : "Chưa đặt tên");
 
+                    // --- CẬP NHẬT ĐỌC PHONE VÀ EMAIL TẠI ĐÂY ---
+                    // Dòng code này đảm bảo dữ liệu mới nhất được lấy về
+                    emp.setPhone(doc.getString("phoneNumber"));
+                    emp.setEmail(doc.getString("email"));
+                    // --------------------------------------------
+
                     String role = doc.getString("role");
-                    // Logic hiển thị chức vụ
                     if ("admin".equalsIgnoreCase(role)) {
                         emp.setJobTitle("Quản lý");
                     } else {
                         emp.setJobTitle("Nhân viên");
                     }
+                    // Tạm fix avatar
+                    emp.setAvatarResId(R.drawable.ic_avatar);
 
                     mListEmployee.add(emp);
                 }
@@ -95,20 +115,37 @@ public class ManagementFragment extends Fragment {
         });
     }
 
+    private void setupNotificationBadge() {
+        // Hiện chấm đỏ khi có yêu cầu update profile đang chờ duyệt
+        db.collection("update_requests")
+                .whereEqualTo("status", "pending")
+                .addSnapshotListener((snapshots, error) -> {
+                    if (error != null) return;
+                    if (snapshots != null && !snapshots.isEmpty()) {
+                        if (viewBadge != null) viewBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        if (viewBadge != null) viewBadge.setVisibility(View.GONE);
+                    }
+                });
+    }
+
     private void setupEvents() {
         etSearch.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) { filterEmployee(s.toString()); }
+            @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
+            @Override public void onTextChanged(CharSequence s, int st, int b, int c) { filterEmployee(s.toString()); }
             @Override public void afterTextChanged(Editable s) {}
         });
 
-        // --- 2. Xử lý ấn vào cái chuông ---
         if (ivNotification != null) {
             ivNotification.setOnClickListener(v -> {
-                // Chuyển sang màn hình Duyệt yêu cầu
-                // Giờ đây nó đã hiểu AdminApprovalActivity là gì nhờ dòng import bên trên
-                Intent intent = new Intent(getContext(), AdminApprovalActivity.class);
-                startActivity(intent);
+                startActivity(new Intent(getContext(), AdminApprovalActivity.class));
+            });
+        }
+
+        // Sự kiện mở trang Nhật ký
+        if (ivHistory != null) {
+            ivHistory.setOnClickListener(v -> {
+                startActivity(new Intent(getContext(), AuditLogActivity.class));
             });
         }
     }

@@ -11,8 +11,10 @@ import android.widget.Toast;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.timemaster.AdminLogManager;
 import com.example.timemaster.R;
 import com.example.timemaster.data.model.Employee;
+// Import Manager Log
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
@@ -41,17 +43,15 @@ public class EmployeeDetailActivity extends AppCompatActivity {
 
         Intent intent = getIntent();
         if (intent.hasExtra("employee_data")) {
-            // --- Chế độ SỬA/CHI TIẾT ---
             isEditMode = true;
             mEmployee = (Employee) intent.getSerializableExtra("employee_data");
             fillData();
             btnDelete.setVisibility(View.VISIBLE);
             tvTitle.setText("Chi tiết nhân viên");
-            btnSave.setText("Lưu thay đổi"); // Đặt lại text cho chế độ sửa
+            btnSave.setText("Lưu thay đổi");
         } else {
-            // --- Chế độ THÊM MỚI ---
             isEditMode = false;
-            mEmployee = new Employee(); // Object rỗng
+            mEmployee = new Employee();
             btnDelete.setVisibility(View.GONE);
             btnSave.setText("Thêm nhân viên");
             tvTitle.setText("Thêm nhân viên mới");
@@ -61,7 +61,6 @@ public class EmployeeDetailActivity extends AppCompatActivity {
     }
 
     private void initViews() {
-        // Nút Back (đảm bảo bạn đã thêm id btnBack vào XML như hướng dẫn trước)
         View btnBack = findViewById(R.id.btnBack);
         if (btnBack != null) btnBack.setOnClickListener(v -> finish());
 
@@ -79,15 +78,15 @@ public class EmployeeDetailActivity extends AppCompatActivity {
         if (mEmployee != null) {
             edtName.setText(mEmployee.getName());
             edtJob.setText(mEmployee.getJobTitle());
+            // Hiển thị SĐT và Email được truyền từ ManagementFragment
             edtPhone.setText(mEmployee.getPhone());
             edtEmail.setText(mEmployee.getEmail());
-            // Cần xử lý tải ảnh từ URL nếu bạn lưu URL trên Firebase,
-            // ở đây tạm dùng Avatar mặc định nếu có ResId
             imgAvatar.setImageResource(mEmployee.getAvatarResId());
         }
     }
 
     private void setupEvents() {
+        AdminLogManager AdminLogManager;
         btnSave.setOnClickListener(v -> {
             String name = edtName.getText().toString().trim();
             String job = edtJob.getText().toString().trim();
@@ -99,16 +98,14 @@ public class EmployeeDetailActivity extends AppCompatActivity {
                 return;
             }
 
-            // Tạo Map dữ liệu chuẩn Firebase
-            // Lưu ý: Key phải khớp với cấu trúc bạn đã lưu trong collection 'users'
             Map<String, Object> userMap = new HashMap<>();
-            userMap.put("displayName", name);  // Key thường dùng cho tên trên Firebase
+            userMap.put("fullName", name); // Đổi key thành fullName cho khớp hệ thống
             userMap.put("jobTitle", job);
             userMap.put("phoneNumber", phone);
             userMap.put("email", email);
-            // Các trường khác như dob, address, v.v. nếu có
+            // userMap.put("displayName", name); // Nếu cần tương thích cũ
 
-            btnSave.setEnabled(false); // Chặn bấm liên tục
+            btnSave.setEnabled(false);
             btnSave.setText("Đang lưu...");
 
             if (isEditMode && mEmployee.getId() != null) {
@@ -116,24 +113,30 @@ public class EmployeeDetailActivity extends AppCompatActivity {
                 db.collection("users").document(mEmployee.getId())
                         .update(userMap)
                         .addOnSuccessListener(aVoid -> {
+                            // --- LOG: SỬA ---
+                            com.example.timemaster.AdminLogManager.log("UPDATE_USER", "Đã cập nhật thông tin cho: " + name);
+
                             Toast.makeText(this, "Cập nhật thành công!", Toast.LENGTH_SHORT).show();
-                            finish(); // Quay lại màn hình danh sách
+                            finish();
                         })
                         .addOnFailureListener(e -> {
-                            Toast.makeText(this, "Lỗi cập nhật: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                             btnSave.setEnabled(true);
                             btnSave.setText("Lưu thay đổi");
                         });
             } else {
                 // --- ADD NEW ---
                 db.collection("users")
-                        .add(userMap) // Firebase tự động tạo ID mới
+                        .add(userMap)
                         .addOnSuccessListener(documentReference -> {
+                            // --- LOG: THÊM MỚI ---
+                            com.example.timemaster.AdminLogManager.log("CREATE_USER", "Đã thêm nhân viên mới: " + name);
+
                             Toast.makeText(this, "Thêm mới thành công!", Toast.LENGTH_SHORT).show();
-                            finish(); // Quay lại màn hình danh sách
+                            finish();
                         })
                         .addOnFailureListener(e -> {
-                            Toast.makeText(this, "Lỗi thêm mới: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                            Toast.makeText(this, "Lỗi: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                             btnSave.setEnabled(true);
                             btnSave.setText("Thêm nhân viên");
                         });
@@ -146,12 +149,16 @@ public class EmployeeDetailActivity extends AppCompatActivity {
                     .setMessage("Bạn chắc chắn muốn xóa nhân viên này?")
                     .setPositiveButton("Xóa", (dialog, which) -> {
                         if (mEmployee.getId() != null) {
+                            String deletedName = mEmployee.getName();
                             // --- DELETE ---
                             db.collection("users").document(mEmployee.getId())
                                     .delete()
                                     .addOnSuccessListener(aVoid -> {
+                                        // --- LOG: XÓA ---
+                                        com.example.timemaster.AdminLogManager.log("DELETE_USER", "Đã xóa nhân viên: " + deletedName);
+
                                         Toast.makeText(this, "Đã xóa nhân viên!", Toast.LENGTH_SHORT).show();
-                                        finish(); // Quay lại màn hình danh sách
+                                        finish();
                                     })
                                     .addOnFailureListener(e -> {
                                         Toast.makeText(this, "Lỗi xóa: " + e.getMessage(), Toast.LENGTH_SHORT).show();
