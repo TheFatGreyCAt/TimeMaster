@@ -142,7 +142,7 @@ public class SettingsFragment extends Fragment {
                     if (document.exists()) {
                         String name = document.getString("fullName");
                         String role = document.getString("role");
-                        String photoUrl = document.getString("photoUrl"); // Lấy URL ảnh
+                        String photoUrl = document.getString("photoUrl");
 
                         // Cập nhật tên và vai trò
                         tvProfileName.setText(name != null ? name : "Người dùng");
@@ -280,7 +280,7 @@ public class SettingsFragment extends Fragment {
                 });
     }
 
-    // --- II. CHANGE PASSWORD LOGIC --- (GIỮ NGUYÊN)
+    //  II. CHANGE PASSWORD
     private void handleChangePassword() {
         if (currentUser == null) {
             Toast.makeText(requireContext(), "Bạn cần đăng nhập để thực hiện.", Toast.LENGTH_SHORT).show();
@@ -348,7 +348,6 @@ public class SettingsFragment extends Fragment {
         });
     }
 
-    // --- III. LOGOUT LOGIC --- (GIỮ NGUYÊN)
     private void handleLogout() {
         if (getActivity() != null) {
             FirebaseAuth.getInstance().signOut();

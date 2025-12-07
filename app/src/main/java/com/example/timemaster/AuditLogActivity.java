@@ -52,7 +52,6 @@ public class AuditLogActivity extends AppCompatActivity {
                 });
     }
 
-    // Inner Adapter Class
     private static class LogAdapter extends RecyclerView.Adapter<LogAdapter.LogVH> {
         List<AuditLog> list;
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());

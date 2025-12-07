@@ -34,12 +34,9 @@ public class ManagementFragment extends Fragment {
     private EditText etSearch;
     private FirebaseFirestore db;
 
-    private ImageView ivNotification; // Cái chuông
-    private View viewBadge;           // Chấm đỏ thông báo
+    private ImageView ivNotification;
+    private View viewBadge;
 
-    // Thêm nút xem nhật ký (bạn có thể thêm 1 icon vào layout xml hoặc dùng tạm icon có sẵn)
-    // Ở đây tôi giả sử bạn thêm 1 ImageView id là iv_history vào toolbar trong XML
-    // Nếu chưa có, bạn hãy thêm vào frag_admin_manage.xml cạnh cái chuông
     private ImageView ivHistory;
 
     @Nullable
@@ -49,9 +46,9 @@ public class ManagementFragment extends Fragment {
 
         db = FirebaseFirestore.getInstance();
         initViews(view);
-        setupDataFromFirebase(); // Hàm này sẽ tự động cập nhật SĐT/Email khi DB thay đổi
+        setupDataFromFirebase();
         setupEvents();
-        setupNotificationBadge(); // Lắng nghe chấm đỏ
+        setupNotificationBadge();
 
         return view;
     }
@@ -62,16 +59,12 @@ public class ManagementFragment extends Fragment {
         ivNotification = view.findViewById(R.id.iv_notification);
         viewBadge = view.findViewById(R.id.view_badge);
 
-        // Bạn cần thêm ImageView id="@+id/iv_history" vào file frag_admin_manage.xml
-        // cạnh cái chuông để làm nút xem nhật ký.
-        // Nếu không muốn sửa XML, có thể tạm bỏ qua dòng này.
         ivHistory = view.findViewById(R.id.iv_history);
 
         rcvEmployees.setLayoutManager(new LinearLayoutManager(getContext()));
         mListEmployee = new ArrayList<>();
 
         employeeAdapter = new EmployeeAdapter(getContext(), mListEmployee, (employee, position) -> {
-            // Khi click vào nhân viên, truyền object Employee (đã có SĐT/Email) sang Detail
             Intent intent = new Intent(getContext(), EmployeeDetailActivity.class);
             intent.putExtra("employee_data", employee);
             startActivity(intent);
@@ -80,7 +73,6 @@ public class ManagementFragment extends Fragment {
     }
 
     private void setupDataFromFirebase() {
-        // Lắng nghe Realtime -> Khi User/Admin update Info, App tự cập nhật List này
         db.collection("users").addSnapshotListener((value, error) -> {
             if (error != null) return;
             if (value != null) {
@@ -93,8 +85,6 @@ public class ManagementFragment extends Fragment {
                     if (name == null) name = doc.getString("displayName");
                     emp.setName(name != null ? name : "Chưa đặt tên");
 
-                    // --- CẬP NHẬT ĐỌC PHONE VÀ EMAIL TẠI ĐÂY ---
-                    // Dòng code này đảm bảo dữ liệu mới nhất được lấy về
                     emp.setPhone(doc.getString("phoneNumber"));
                     emp.setEmail(doc.getString("email"));
                     // --------------------------------------------
@@ -105,7 +95,6 @@ public class ManagementFragment extends Fragment {
                     } else {
                         emp.setJobTitle("Nhân viên");
                     }
-                    // Tạm fix avatar
                     emp.setAvatarResId(R.drawable.ic_avatar);
 
                     mListEmployee.add(emp);
