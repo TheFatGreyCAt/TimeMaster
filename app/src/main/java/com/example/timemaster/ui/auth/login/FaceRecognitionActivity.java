@@ -65,7 +65,11 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
 
     private boolean isRegistration = false; // set via Intent extra if desired
     private static final int cameraFacing = CameraSelector.LENS_FACING_FRONT; // use front camera
-    private static final float RECOGNITION_THRESHOLD = 1.0f; // tune this value
+
+    // TUNABLE PARAMETERS: adjust to find the best balance between FPR and FNR
+    private static final double RECOGNITION_THRESHOLD = 0.85; // stricter than before (was 1.0)
+    private static final double MIN_DISTANCE_MARGIN = 0.25; // required (secondBest - best) margin to accept a match
+    private static final double NEARBY_DISTANCE_THRESHOLD = 1.2; // for sanity counting of nearby candidates
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -272,6 +276,9 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
 
                     String bestId = null;
                     double bestDistance = Double.MAX_VALUE;
+                    double secondBestDistance = Double.MAX_VALUE;
+
+                    int candidateCount = 0; // number of embeddings within a reasonable distance
 
                     for (DocumentSnapshot doc : querySnapshot.getDocuments()) {
                         @SuppressWarnings("unchecked")
@@ -282,22 +289,61 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                         for (int i = 0; i < stored.size(); i++) storedArray[i] = stored.get(i).floatValue();
 
                         double dist = l2Distance(embedding, storedArray);
+
+                        // Count candidates within a loose nearby threshold for diagnostics
+                        if (dist <= NEARBY_DISTANCE_THRESHOLD) candidateCount++;
+
                         if (dist < bestDistance) {
+                            secondBestDistance = bestDistance;
                             bestDistance = dist;
                             bestId = doc.getId();
+                        } else if (dist < secondBestDistance) {
+                            secondBestDistance = dist;
                         }
                     }
 
-                    if (bestId != null && bestDistance <= RECOGNITION_THRESHOLD) {
-                        Log.d(TAG, "FACE RECOGNITION SUCCESS");
-                        Log.d(TAG, "Matched user ID: " + bestId);
-                        Log.d(TAG, "Distance: " + bestDistance);
+                    // Evaluate acceptance with margin and threshold rules
+                    String decisionReason = "NO_MATCH";
+                    boolean accept = false;
 
-                        // Lưu attendance record vào Firebase
-                        saveAttendanceRecord(bestId, bestDistance);
+                    if (bestId != null && bestDistance <= RECOGNITION_THRESHOLD) {
+                        double margin = (secondBestDistance == Double.MAX_VALUE) ? Double.MAX_VALUE : (secondBestDistance - bestDistance);
+
+                        Log.d(TAG, "Best distance=" + bestDistance + ", secondBest=" + secondBestDistance + ", margin=" + margin + ", candidatesNearby=" + candidateCount);
+
+                        // If there is no second best (only one candidate), require a stronger guard
+                        if (secondBestDistance == Double.MAX_VALUE) {
+                            // Accept only if best distance is significantly below threshold (conservative)
+                            if (bestDistance <= (RECOGNITION_THRESHOLD * 0.9)) {
+                                accept = true;
+                                decisionReason = "SINGLE_CANDIDATE_CONFIDENT";
+                            } else {
+                                accept = false;
+                                decisionReason = "SINGLE_CANDIDATE_NOT_CONFIDENT";
+                            }
+                        } else {
+                            if (margin >= MIN_DISTANCE_MARGIN) {
+                                accept = true;
+                                decisionReason = "MARGIN_PASSED";
+                            } else {
+                                // margin too small -> ambiguous
+                                accept = false;
+                                decisionReason = "MARGIN_TOO_SMALL";
+                            }
+                        }
                     } else {
-                        updateStatusText("Không khớp với dữ liệu đã lưu - thử lại");
-                        Toast.makeText(this, "Không tìm thấy kết quả phù hợp", Toast.LENGTH_SHORT).show();
+                        // Best distance exceeds threshold
+                        decisionReason = "DISTANCE_TOO_LARGE";
+                        accept = false;
+                    }
+
+                    if (accept) {
+                        Log.d(TAG, "FACE RECOGNITION SUCCESS (accept). ID=" + bestId + ", dist=" + bestDistance + ", reason=" + decisionReason);
+                        saveAttendanceRecord(bestId, bestDistance, secondBestDistance, decisionReason, candidateCount);
+                    } else {
+                        Log.w(TAG, "FACE RECOGNITION REJECTED. bestId=" + bestId + ", bestDistance=" + bestDistance + ", secondBest=" + secondBestDistance + ", reason=" + decisionReason);
+                        updateStatusText("Không khớp với dữ liệu đã lưu - " + friendlyReason(decisionReason));
+                        Toast.makeText(this, "Không tìm thấy kết quả phù hợp: " + friendlyReason(decisionReason), Toast.LENGTH_SHORT).show();
                         isProcessing = false;
                     }
                 })
@@ -306,6 +352,15 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                     Toast.makeText(this, "Lỗi khi lấy dữ liệu", Toast.LENGTH_SHORT).show();
                     isProcessing = false;
                 });
+    }
+
+    private String friendlyReason(String code) {
+        switch (code) {
+            case "MARGIN_TOO_SMALL": return "Kết quả không rõ ràng (nhiều ứng viên giống nhau)";
+            case "SINGLE_CANDIDATE_NOT_CONFIDENT": return "Không đủ độ tin cậy";
+            case "DISTANCE_TOO_LARGE": return "Khoảng cách nhận diện quá lớn";
+            default: return "Không khớp";
+        }
     }
 
     private double l2Distance(float[] a, float[] b) {
@@ -325,11 +380,12 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
      * @param userId ID của user được nhận diện
      * @param confidence Độ chính xác (L2 distance, càng nhỏ càng tốt)
      */
-    private void saveAttendanceRecord(String userId, double confidence) {
+    private void saveAttendanceRecord(String userId, double confidence, double secondBest, String decisionReason, int candidateCount) {
         Log.d(TAG, "saveAttendanceRecord: START");
         Log.d(TAG, "User ID: " + userId);
         Log.d(TAG, "Confidence (distance): " + confidence);
-
+        Log.d(TAG, "Second best distance: " + secondBest);
+        Log.d(TAG, "Decision reason: " + decisionReason);
 
         // Lấy ngày hiện tại
         String today = new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -369,20 +425,16 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                     }
 
                     // Lưu record mới với checkType đã xác định
-                    saveAttendanceRecordWithType(userId, confidence, checkType);
+                    saveAttendanceRecordWithType(userId, confidence, secondBest, decisionReason, candidateCount, checkType);
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to check last record, defaulting to CHECK_IN", e);
                     // Nếu lỗi khi query, mặc định là CHECK_IN
-                    saveAttendanceRecordWithType(userId, confidence, "CHECK_IN");
+                    saveAttendanceRecordWithType(userId, confidence, secondBest, decisionReason, candidateCount, "CHECK_IN");
                 });
     }
 
-    /**
-     * Lưu attendance record với checkType đã xác định
-     * Lấy email từ face_embeddings collection (không cần đăng nhập)
-     */
-    private void saveAttendanceRecordWithType(String userId, double confidence, String checkType) {
+    private void saveAttendanceRecordWithType(String userId, double confidence, double secondBest, String decisionReason, int candidateCount, String checkType) {
         Log.d(TAG, "=== saveAttendanceRecordWithType ===");
         Log.d(TAG, "User ID: " + userId);
         Log.d(TAG, "Check Type: " + checkType);
@@ -400,26 +452,45 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
 
                     Log.d(TAG, "Retrieved user email: " + userEmail);
 
-                    // Tiến hành lưu attendance record
-                    saveAttendanceRecordToFirestore(userId, userEmail, confidence, checkType);
+                    final String userEmailFinal = userEmail; // make effectively final for nested lambdas
+
+                    // Now try to fetch fullName from users collection for friendly message
+                    firestore.collection("users").document(userId)
+                            .get()
+                            .addOnSuccessListener(userDoc -> {
+                                String fullName = userDoc != null ? userDoc.getString("fullName") : null;
+                                if (fullName == null || fullName.isEmpty()) {
+                                    // Fallback: use email's local part or a generic label
+                                    final String fallbackName = (userEmailFinal != null && userEmailFinal.contains("@")) ? userEmailFinal.split("@")[0] : "User";
+                                    fullName = fallbackName;
+                                }
+                                // Tiến hành lưu attendance record với fullName
+                                saveAttendanceRecordToFirestore(userId, userEmailFinal, fullName, confidence, secondBest, decisionReason, candidateCount, checkType);
+                            })
+                            .addOnFailureListener(e -> {
+                                Log.w(TAG, "Failed to fetch user fullName, using fallback", e);
+                                final String fallbackName = (userEmailFinal != null && userEmailFinal.contains("@")) ? userEmailFinal.split("@")[0] : "User";
+                                saveAttendanceRecordToFirestore(userId, userEmailFinal, fallbackName, confidence, secondBest, decisionReason, candidateCount, checkType);
+                            });
                 })
                 .addOnFailureListener(e -> {
                     Log.e(TAG, "Failed to get user email, using fallback", e);
                     // Nếu không lấy được email, vẫn lưu với email mặc định
-                    saveAttendanceRecordToFirestore(userId, "unknown@example.com", confidence, checkType);
+                    String fallbackEmail = "unknown@example.com";
+                    String fallbackName = "User";
+                    saveAttendanceRecordToFirestore(userId, fallbackEmail, fallbackName, confidence, secondBest, decisionReason, candidateCount, checkType);
                 });
     }
 
-    /**
-     * Lưu attendance record vào Firestore
-     */
-    private void saveAttendanceRecordToFirestore(String userId, String userEmail, double confidence, String checkType) {
+    // Modified signature: added 'fullName' parameter
+    private void saveAttendanceRecordToFirestore(String userId, String userEmail, String fullName, double confidence, double secondBest, String decisionReason, int candidateCount, String checkType) {
         long timestamp = System.currentTimeMillis();
         String recordId = firestore.collection("attendanceRecords").document().getId();
 
         Map<String, Object> attendanceData = new HashMap<>();
         attendanceData.put("uid", userId);
         attendanceData.put("userEmail", userEmail);
+        attendanceData.put("fullName", fullName);
         attendanceData.put("timestamp", timestamp);
         attendanceData.put("date", new java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(new java.util.Date(timestamp)));
         attendanceData.put("time", new java.text.SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(new java.util.Date(timestamp)));
@@ -428,6 +499,11 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
         attendanceData.put("confidence", confidence);
         attendanceData.put("status", "PRESENT");
         attendanceData.put("deviceInfo", android.os.Build.MODEL);
+
+        // Additional audit fields to help diagnose false positives
+        attendanceData.put("matchDecisionReason", decisionReason);
+        attendanceData.put("secondBestDistance", secondBest);
+        attendanceData.put("nearbyCandidateCount", candidateCount);
 
         Log.d(TAG, "Attendance record ID: " + recordId);
         Log.d(TAG, "Saving to Firestore...");
@@ -440,13 +516,11 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                 .addOnSuccessListener(aVoid -> {
                     Log.d(TAG, "=== ATTENDANCE RECORD SAVED SUCCESSFULLY ===");
 
-                    String checkTypeVN = checkType.equals("CHECK_IN") ? "Check-in" : "Check-out";
-
+                    // New welcome message using fullName
                     runOnUiThread(() -> {
-                        String message = String.format(Locale.getDefault(),
-                            "%s thành công!\nĐộ chính xác: %.3f", checkTypeVN, confidence);
+                        String message = String.format(Locale.getDefault(), "Chào mừng, %s đã điểm danh thành công", fullName);
                         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-                        updateStatusText("✅ " + checkTypeVN + " thành công");
+                        updateStatusText(message);
                     });
                     isProcessing = false;
 
@@ -461,7 +535,7 @@ public class FaceRecognitionActivity extends AppCompatActivity implements FaceRe
                     runOnUiThread(() -> {
                         String errorMsg = "Lưu điểm danh thất bại: " + e.getMessage();
                         Toast.makeText(this, errorMsg, Toast.LENGTH_LONG).show();
-                        updateStatusText("❌ " + errorMsg);
+                        updateStatusText(errorMsg);
                     });
                     isProcessing = false;
                 });
